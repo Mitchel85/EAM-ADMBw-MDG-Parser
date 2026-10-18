@@ -1,0 +1,3 @@
+# output/ = Liefergegenstand (KB-Dateien), bewusst eingecheckt
+__pycache__/
+*.pyc
