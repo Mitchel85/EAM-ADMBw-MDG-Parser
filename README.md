@@ -18,11 +18,20 @@ python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
 
 | Ausgabe | Inhalt | Umfang (Stand 2026.05) |
 |---|---|---|
-| `admbw-knowledge-stereotypes.md` | Stereotyp-Katalog: Name, Metatype, Vererbung, AppliesTo, Beschreibung | **642 Stereotype** |
+| `admbw-knowledge-stereotypes.md` | Stereotyp-Katalog: Name, Metatype, Vererbung, AppliesTo, Beschreibung | **443 eindeutige Stereotype** |
 | `admbw-knowledge-topology.md` | Beziehungsregeln aus Metaconstraints: erlaubte Ziele (client), erlaubte Quellen (supplier), weitere Rollen | **203 Stereotype mit Regeln** |
 | `admbw-knowledge-viewpoints.md` | Die NAFv4-Viewpoints mit Properties und Bedeutung | **53 Viewpoints** |
 | `admbw-knowledge-tagtypes.md` | Tagged-Value-Definitionen mit Typeregeln (`Type=RefGUID; Values=Class; Stereotypes=…`) | Property-Typen |
 | `admbw-meta.md` | Version, Quelle, Extraktionszeitpunkt, Statistiken | – |
+
+> **Zählweise:** Die MDG deklariert gemeinsame Stereotype in jedem ihrer ~60 Profile
+> erneut (Rohzählung ~640 Definitionen); hier zählen nur eindeutige Stereotype des Katalogs.
+
+## Online-Version (GitHub Pages)
+
+Dieselbe Extraktion läuft auch **direkt im Browser** — keine Installation, 100 % lokal:
+
+**▶️ https://mitchel85.github.io/EAM-ADMBw-MDG-Parser/** (`web/EAM_MDG_Parser.html`)
 
 ## Quelle
 

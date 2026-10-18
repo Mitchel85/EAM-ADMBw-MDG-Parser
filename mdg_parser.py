@@ -40,10 +40,26 @@ def clean(s):
 
 
 def extract_stereotypes(root):
-    """642 Stereotype: Name | Metatype | Beschreibung | Vererbung | AppliesTo."""
-    rows = []
+    """Stereotyp-Katalog: EINDEUTIGE Stereotype (dedupliziert, ohne Viewpoints).
+
+    Die MDG deklariert gemeinsame Connector-Stereotype (z. B. „Conforms To Standard“)
+    in jedem der ~60 Profile erneut — Rohzählung (642) wäre verzerrt. Viewpoints
+    (DiagramProfile) werden separat extrahiert.
+    """
+    # Viewpoint-Stereotype aus der DiagramProfile-Sektion ausschließen
+    vp_ids = set()
+    for dp in find_all(root, 'DiagramProfile'):
+        for st in [s for s in dp.iter() if tag(s) == 'Stereotype']:
+            vp_ids.add(id(st))
+
+    rows, seen = [], set()
     for st in find_all(root, 'Stereotype'):
+        if id(st) in vp_ids:
+            continue
         name = st.get('name') or '(ohne Name)'
+        if name in seen:
+            continue  # Mehrfachdeklaration in anderen Profilen — erste Definition zählt
+        seen.add(name)
         meta = st.get('metatype') or ''
         notes = clean(st.get('notes'))
         gen = st.get('generalizes') or ''
@@ -212,10 +228,14 @@ def build_md(st, topo, vps, enums, src, version_hint):
         "",
         f"- **MDG-Datei:** `{src}`",
         f"- **Extrahiert am:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
-        f"- **Stereotype:** {len(st)}",
+        f"- **Stereotype (eindeutig, ohne Viewpoints):** {len(st)}",
         f"- **Stereotype mit Topologie-Regeln:** {len(topo)}",
         f"- **Viewpoints:** {len(vps)}",
-        f"- **TaggedValueTypes:** {len(enums)}",
+        f"- **Tagged-Value-Typen:** {len(enums)}",
+        "",
+        "Zählweise: Die MDG deklariert gemeinsame Stereotype in jedem der ~60 Profile",
+        "erneut — die Rohzählung (~640 Definitionen) enthält Mehrfachdeklarationen und",
+        "die 53 Viewpoints; hier zählen nur eindeutige Stereotype des Katalogs.",
         "",
         "Diese Dateien wurden automatisch aus der offiziellen ADMBw-MDG-Technologie erzeugt",
         "(https://www.bundeswehr.de/de/organisation/ausruestung-baainbw/vergabe/methode-architektur).",
