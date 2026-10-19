@@ -18,20 +18,38 @@ python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
 
 | Ausgabe | Inhalt | Umfang (Stand 2026.05) |
 |---|---|---|
-| `admbw-knowledge-stereotypes.md` | Stereotyp-Katalog: Name, Metatype, Vererbung, AppliesTo, Beschreibung | **443 eindeutige Stereotype** |
-| `admbw-knowledge-topology.md` | Beziehungsregeln aus Metaconstraints: erlaubte Ziele (client), erlaubte Quellen (supplier), weitere Rollen | **203 Stereotype mit Regeln** |
-| `admbw-knowledge-viewpoints.md` | Die NAFv4-Viewpoints mit Properties und Bedeutung | **53 Viewpoints** |
-| `admbw-knowledge-tagtypes.md` | Tagged-Value-Definitionen mit Typeregeln (`Type=RefGUID; Values=Class; Stereotypes=…`) | Property-Typen |
-| `admbw-meta.md` | Version, Quelle, Extraktionszeitpunkt, Statistiken | – |
+| `admbw-knowledge-stereotypes.md` | Stereotyp-Katalog: Name, Metatype, Vererbung (`generalizes` + `baseStereotypes`), AppliesTo, Beschreibung | **318 Modell-Stereotype** (davon 293 mit AppliesTo im Modell nutzbar, 25 abstrakte Basis-Stereotype ohne AppliesTo, 5 ohne Metatype) |
+| `admbw-knowledge-topology.md` | Beziehungsregeln aus Metaconstraints: Quelle (client), Ziel (supplier), weitere Rollen | **203 Stereotype mit Regeln** (114 vollständig mit Quelle **und** Ziel — nur diese sind maschinell prüfbar) |
+| `admbw-knowledge-viewpoints.md` | Die NAFv4-Viewpoints (DiagramProfile, ohne das Diagramm-Artefakt „Business Process“) | **52 Viewpoints** |
+| `admbw-knowledge-tagtypes.md` | Tagged-Value-Definitionen mit Typeregeln (`Type=RefGUID; Values=Class; Stereotypes=…`), je `DataRow` einzeln geparst | **27 Property-Typen** |
+| `admbw-meta.md` | Quelle, Version, Extraktionszeitpunkt, Statistiken, Zählweise | – |
 
-> **Zählweise:** Die MDG deklariert gemeinsame Stereotype in jedem ihrer ~60 Profile
-> erneut (Rohzählung ~640 Definitionen); hier zählen nur eindeutige Stereotype des Katalogs.
+> **Zählweise:** Die MDG enthält die Stereotype in drei getrennten Bereichen:
+> `UMLProfiles` (318 Deklarationen — das Modellprofil, der eigentliche Katalog),
+> `UIToolboxes` (271 Elemente / 125 UI-Toolbox-Seiten — reine Bedienoberfläche, keine Modell-Stereotype) und
+> `DiagramProfile` (53 Einträge = 52 Viewpoints + 1 Diagramm-Artefakt „Business Process“).
+> Der Katalog zählt ausschließlich die `UMLProfiles`-Stereotype; Toolbox-Seiten werden nicht extrahiert.
+> Viewpoint-Properties gibt es in dieser MDG nicht — die `Property`-Elemente der XML sind
+> Diagramm-Konfiguration (`Apply`) und werden nicht als fachliche Properties ausgegeben.
+
+## Reproduzierbarkeit & Fehlerverhalten
+
+- `--no-timestamp` unterdrückt Zeitstempel in allen fünf Dateien → zwei Läufe sind **byte-identisch**.
+- Alternativ `SOURCE_DATE_EPOCH=<unix-zeit>` setzen → deterministischer Zeitstempel.
+- Nur Dateien mit Root-Element `<MDG.Technology>` werden akzeptiert. Alle Fehler
+  (Datei fehlt, kein/defektes XML, fremdes XML, IO-Fehler) beenden das Programm mit
+  **Exit 2**, einer kurzen deutschen Meldung auf stderr und **ohne** Ausgabedateien.
 
 ## Online-Version (GitHub Pages)
 
 Dieselbe Extraktion läuft auch **direkt im Browser** — keine Installation, 100 % lokal:
 
 **▶️ https://mitchel85.github.io/EAM-ADMBw-MDG-Parser/** (`web/EAM_MDG_Parser.html`)
+
+Die Web-Version liest die Datei als `ArrayBuffer` und bestimmt das Encoding aus der
+XML-Deklaration (bzw. BOM; Standard: `windows-1252`), sodass Umlaute und Sonderzeichen
+korrekt erhalten bleiben. `docs/EAM_MDG_Parser.html` ist ein identischer Spiegel für
+GitHub Pages.
 
 ## Quelle
 
