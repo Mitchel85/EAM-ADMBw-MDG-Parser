@@ -22,6 +22,7 @@ python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
 | `admbw-knowledge-topology.md` | Beziehungsregeln aus Metaconstraints: Quelle (client/source/end[0]), Ziel (supplier/target/end[1]), weitere Rollen | **203 Stereotype mit Regeln** (133 vollständig mit Quelle **und** Ziel — nur diese sind maschinell prüfbar) |
 | `admbw-knowledge-viewpoints.md` | Die NAFv4-Viewpoints (DiagramProfile, ohne das Diagramm-Artefakt „Business Process“) | **52 Viewpoints** |
 | `admbw-knowledge-tagtypes.md` | Tagged-Value-Definitionen mit Typeregeln (`Type=RefGUID; Values=Class; Stereotypes=…`), je `DataRow` einzeln geparst | **27 Property-Typen** |
+| `admbw-knowledge-stereotype-tags.md` | Konkrete Tagged Values je Stereotyp (Typ, erlaubte Werte, Default, Beschreibung) | **225 Tags an 66 Stereotypen** |
 | `admbw-meta.md` | Quelle, Version, Extraktionszeitpunkt, Statistiken, Zählweise | – |
 
 > **Zählweise:** Die MDG enthält die Stereotype in drei getrennten Bereichen:

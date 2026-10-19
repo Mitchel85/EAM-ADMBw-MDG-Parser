@@ -14,6 +14,7 @@ Erzeugt im Ausgabeordner:
     admbw-knowledge-topology.md      Topologie-Regeln (Metaconstraints: Quelle / Ziel, inkl. source/target/end-Rollen)
     admbw-knowledge-viewpoints.md    52 Viewpoints (DiagramProfile, ohne Diagramm-Artefakt „Business Process“)
     admbw-knowledge-tagtypes.md      Property-Typen (Tagged-Value-Definitionen mit Typeregeln)
+    admbw-knowledge-stereotype-tags.md Konkrete Tags je Stereotyp (Typ, Werte, Default)
     admbw-meta.md                    Quelle, Extraktionszeitpunkt, Statistiken
 
 Reproduzierbarkeit: Mit --no-timestamp (oder gesetzter SOURCE_DATE_EPOCH) sind
@@ -41,6 +42,35 @@ def clean(s):
     if not s:
         return ""
     return " ".join(str(s).split())
+
+
+def extract_stereotype_tags(root):
+    """Tagged Values je Stereotyp (``TaggedValues/Tag``).
+
+    Die globale ``TaggedValueTypes``-Sektion beschreibt nur die Datentypen;
+    die konkreten Tags (z. B. ``ITSD_ServiceTyp`` oder ``ITSD_Group``) hängen
+    direkt am jeweiligen Stereotyp. Diese Werte sind für die Modellvalidierung
+    und für Tool-Prompts relevant.
+    """
+    rows = []
+    for st in model_stereotypes(root):
+        name = (st.get('name') or '').strip()
+        if not name:
+            continue
+        for tv in [c for c in st if tag(c) == 'TaggedValues']:
+            for t in [c for c in tv if tag(c) == 'Tag']:
+                tag_name = (t.get('name') or '').strip()
+                if not tag_name:
+                    continue
+                rows.append({
+                    'stereotype': name,
+                    'tag': tag_name,
+                    'type': (t.get('type') or '').strip(),
+                    'values': (t.get('values') or '').strip(),
+                    'default': (t.get('default') or '').strip(),
+                    'description': clean(t.get('description') or ''),
+                })
+    return rows
 
 
 def md_escape(s):
@@ -202,7 +232,7 @@ def extract_enums(root):
     return enums
 
 
-def build_md(st, topo, vps, enums, src, version_hint, ts, ctx):
+def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     out = {}
 
     if ts:
@@ -281,7 +311,24 @@ def build_md(st, topo, vps, enums, src, version_hint, ts, ctx):
         lines.append(f"| {md_escape(e['name'])} | {md_escape(e['dataset'])} | {md_escape(e['desc'][:100])} | {md_escape(e['notes'][:160])} |")
     out['admbw-knowledge-tagtypes.md'] = "\n".join(lines)
 
-    # 5) Meta
+    # 5) Konkrete Tagged Values je Stereotyp
+    lines = [
+        "# ADMBw-Stereotyp-Tags (MDG-TaggedValues)",
+        "",
+        header,
+        f"> {len(tags)} Tags an {len(set(t['stereotype'] for t in tags))} Stereotypen",
+        "",
+        "| Stereotype | Tag | Typ | Erlaubte Werte | Default | Beschreibung |",
+        "|---|---|---|---|---|---|",
+    ]
+    for t in tags:
+        lines.append(
+            f"| {md_escape(t['stereotype'])} | {md_escape(t['tag'])} | {md_escape(t['type'])} | "
+            f"{md_escape(t['values'][:180])} | {md_escape(t['default'])} | {md_escape(t['description'][:120])} |"
+        )
+    out['admbw-knowledge-stereotype-tags.md'] = "\n".join(lines)
+
+    # 6) Meta
     usable = sum(1 for s in st if s['applies'])
     with_meta = sum(1 for s in st if s['metatype'])
     no_meta = sorted(s['name'] for s in st if not s['metatype'])
@@ -299,6 +346,7 @@ def build_md(st, topo, vps, enums, src, version_hint, ts, ctx):
         f"- **Stereotype mit Topologie-Regeln:** {len(topo)} (davon {n_complete} vollständig mit Quelle und Ziel)",
         f"- **Viewpoints:** {len(vps)} (DiagramProfile ohne Diagramm-Artefakt „Business Process“)",
         f"- **Property-Typen:** {len(enums)}",
+        f"- **Stereotyp-Tags:** {len(tags)} an {len(set(t['stereotype'] for t in tags))} Stereotypen",
         "",
         "Zählweise: Die MDG enthält die Stereotype in drei getrennten Bereichen —",
         f"{len(st)} Deklarationen in UMLProfiles (das Modellprofil, der eigentliche Katalog),",
@@ -347,6 +395,7 @@ def main():
     topo = extract_topology(root)
     vps = extract_viewpoints(root)
     enums = extract_enums(root)
+    tags = extract_stereotype_tags(root)
     version_hint = os.path.basename(args.mdg)
     ctx = {
         'toolbox_elems': sum(1 for sec in find_all(root, 'UIToolboxes') for c in sec.iter() if tag(c) == 'Stereotype'),
@@ -359,6 +408,7 @@ def main():
           f"(davon {sum(1 for t in topo if t['complete'])} vollständig)")
     print(f"  Viewpoints: {len(vps)}")
     print(f"  Property-Typen (TaggedValueTypes): {len(enums)}")
+    print(f"  Stereotyp-Tags (TaggedValues): {len(tags)}")
 
     # Zeitstempel: --no-timestamp deaktiviert, SOURCE_DATE_EPOCH macht deterministisch
     ts = None
@@ -372,7 +422,7 @@ def main():
         if ts is None:
             ts = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
-    docs = build_md(st, topo, vps, enums, args.mdg, version_hint, ts, ctx)
+    docs = build_md(st, topo, vps, enums, tags, args.mdg, version_hint, ts, ctx)
 
     try:
         os.makedirs(args.out, exist_ok=True)

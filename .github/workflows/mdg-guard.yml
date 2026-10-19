@@ -1,0 +1,50 @@
+name: MDG Guard
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  mdg-kb-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout parser
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download official ADMBw MDG
+        run: |
+          curl -fsSL \
+            "https://www.bundeswehr.de/resource/blob/5570648/86b87446ff3b144de324f1dde2d85521/admbw-mdg-nafv4--data.zip" \
+            -o /tmp/admbw-mdg-nafv4.zip
+          unzip -q /tmp/admbw-mdg-nafv4.zip -d /tmp/mdg
+          test -f /tmp/mdg/NAFv4-ADMBw-MDG-2026.05.xml
+
+      - name: Extract twice and prove reproducibility
+        run: |
+          python3 mdg_parser.py /tmp/mdg/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-a --no-timestamp
+          python3 mdg_parser.py /tmp/mdg/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-b --no-timestamp
+          diff -ru /tmp/mdg-a /tmp/mdg-b
+
+      - name: Checkout downstream KB repos
+        uses: actions/checkout@v4
+        with:
+          repository: Mitchel85/EAM-AI-ADMBw-Extractor
+          path: downstream/extractor
+      - uses: actions/checkout@v4
+        with:
+          repository: Mitchel85/EAM-AI-ADMBw-Batch
+          path: downstream/batch
+      - uses: actions/checkout@v4
+        with:
+          repository: Mitchel85/EAM-AI-ADMBw-Script-Maker
+          path: downstream/script-maker
+
+      - name: Verify KB sync and ADMBw counts
+        run: |
+          python3 scripts/check_kb_sync.py /tmp/mdg-a \
+            downstream/extractor downstream/batch downstream/script-maker

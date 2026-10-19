@@ -1,8 +1,8 @@
 # ADMBw-MDG-Extraktion — Metadaten
 
-- **MDG-Datei:** `/root/hermes-workspace/architektur-mate-ki/tools/NAFv4-ADMBw-MDG-2026.05.xml`
+- **MDG-Datei:** `../bw-doku-2026-10-19/mdg/NAFv4-ADMBw-MDG-2026.05.xml`
 - **MDG-Version (aus Dateiname):** NAFv4-ADMBw-MDG-2026.05.xml
-- **Extrahiert am:** 2026-10-19 05:33:54 UTC
+- **Extrahiert am:** 2026-10-19 05:44:36 UTC
 - **Stereotype im Katalog:** 318 (nur UMLProfiles)
 - **Davon im Modell nutzbar (mit AppliesTo):** 293
 - **Davon mit Metatype:** 313 (5 ohne: ActualServiceSpecificationRole, BWRequirement, ElementCatalogue, ServiceExchange, SuccessorOf)
@@ -10,6 +10,7 @@
 - **Stereotype mit Topologie-Regeln:** 203 (davon 133 vollständig mit Quelle und Ziel)
 - **Viewpoints:** 52 (DiagramProfile ohne Diagramm-Artefakt „Business Process“)
 - **Property-Typen:** 27
+- **Stereotyp-Tags:** 225 an 66 Stereotypen
 
 Zählweise: Die MDG enthält die Stereotype in drei getrennten Bereichen —
 318 Deklarationen in UMLProfiles (das Modellprofil, der eigentliche Katalog),

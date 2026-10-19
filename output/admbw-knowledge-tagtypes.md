@@ -1,6 +1,6 @@
 # ADMBw-Tagged-Value-Definitionen (MDG-Property-Typen)
 
-> Quelle: `/root/hermes-workspace/architektur-mate-ki/tools/NAFv4-ADMBw-MDG-2026.05.xml` — automatisch erzeugt am 2026-10-19 05:33:54 UTC
+> Quelle: `../bw-doku-2026-10-19/mdg/NAFv4-ADMBw-MDG-2026.05.xml` — automatisch erzeugt am 2026-10-19 05:44:36 UTC
 > 27 Property-Typen
 
 | Property | Datensatz | Beschreibung | Einschränkungen (aus MDG) |
