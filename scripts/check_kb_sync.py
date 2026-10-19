@@ -74,19 +74,24 @@ def main():
         st_file = resolve(root, "ADMBw-Knowledge-Stereotypes.md")
         tp_file = resolve(root, "ADMBw-Knowledge-Topology.md")
         vp_file = resolve(root, "ADMBw-Knowledge-Viewpoints.md")
+        tt_file = resolve(root, "ADMBw-Knowledge-TagTypes.md")
         check(st_file.is_file(), f"{root}: Stereotype-KB vorhanden")
         check(tp_file.is_file(), f"{root}: Topologie-KB vorhanden")
         check(vp_file.is_file(), f"{root}: Viewpoints-KB vorhanden")
+        check(tt_file.is_file(), f"{root}: Tag-Typen-KB vorhanden")
         dst = table_rows(st_file)
         dtp = table_rows(tp_file)
         dvp = parses(vp_file.read_text(encoding="utf-8"), r"^## ")
+        dtt = table_rows(tt_file)
         dtp_complete = [r for r in dtp if len(r) >= 4 and r[1] and r[2]]
         check(len(dst) == 318, f"{root}: Stereotype {len(dst)}/318")
         check(len(dtp) == 203, f"{root}: Topologie {len(dtp)}/203")
         check(len(dtp_complete) == 133, f"{root}: vollständige Regeln {len(dtp_complete)}/133")
         check(dvp == 52, f"{root}: Viewpoints {dvp}/52")
+        check(len(dtt) == 27, f"{root}: Tag-Typen {len(dtt)}/27")
         check({r[0] for r in dst} == st_names, f"{root}: Stereotyp-Namen identisch")
         check({r[0] for r in dtp} == tp_names, f"{root}: Topologie-Namen identisch")
+        check({r[0] for r in dtt} == {r[0] for r in tag}, f"{root}: Tag-Typ-Namen identisch")
         if not down_st:
             down_st, down_tp = dst, dtp
         else:
