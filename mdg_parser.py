@@ -324,7 +324,7 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     for t in tags:
         lines.append(
             f"| {md_escape(t['stereotype'])} | {md_escape(t['tag'])} | {md_escape(t['type'])} | "
-            f"{md_escape(t['values'][:180])} | {md_escape(t['default'])} | {md_escape(t['description'][:120])} |"
+            f"{md_escape(t['values'])} | {md_escape(t['default'])} | {md_escape(t['description'][:120])} |"
         )
     out['admbw-knowledge-stereotype-tags.md'] = "\n".join(lines)
 

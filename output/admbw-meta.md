@@ -2,7 +2,7 @@
 
 - **MDG-Datei:** `../bw-doku-2026-10-19/mdg/NAFv4-ADMBw-MDG-2026.05.xml`
 - **MDG-Version (aus Dateiname):** NAFv4-ADMBw-MDG-2026.05.xml
-- **Extrahiert am:** 2026-10-19 05:44:36 UTC
+- **Extrahiert am:** 2026-10-19 05:45:34 UTC
 - **Stereotype im Katalog:** 318 (nur UMLProfiles)
 - **Davon im Modell nutzbar (mit AppliesTo):** 293
 - **Davon mit Metatype:** 313 (5 ohne: ActualServiceSpecificationRole, BWRequirement, ElementCatalogue, ServiceExchange, SuccessorOf)

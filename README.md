@@ -41,6 +41,23 @@ python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
   (Datei fehlt, kein/defektes XML, fremdes XML, IO-Fehler) beenden das Programm mit
   **Exit 2**, einer kurzen deutschen Meldung auf stderr und **ohne** Ausgabedateien.
 
+## Tests & Reproduzierbarkeit
+
+Der offizielle MDG-Stand 2026.05 liegt als Test-Fixture unter
+`tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml` (SHA-256 `c014ceda…701c84`).
+Die GitHub Action `MDG Guard` prüft damit:
+
+- Byte-Identität zweier `--no-timestamp`-Läufe
+- 318 Stereotype / 293 nutzbar / 133 vollständige Topologie-Regeln / 52 Viewpoints / 27 Property-Typen / 225 Stereotyp-Tags
+- Namensgleichheit der Wissensbasis in Extractor, Batch und Script-Maker
+
+Lokal:
+
+```bash
+python3 mdg_parser.py tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-a --no-timestamp
+python3 scripts/check_kb_sync.py /tmp/mdg-a ../EAM-AI-ADMBw-Extractor ../EAM-AI-ADMBw-Batch ../repo-scan/sparx-ea-scripts
+```
+
 ## Online-Version (GitHub Pages)
 
 Dieselbe Extraktion läuft auch **direkt im Browser** — keine Installation, 100 % lokal:

@@ -1,6 +1,6 @@
 # ADMBw-Stereotyp-Tags (MDG-TaggedValues)
 
-> Quelle: `../bw-doku-2026-10-19/mdg/NAFv4-ADMBw-MDG-2026.05.xml` — automatisch erzeugt am 2026-10-19 05:44:36 UTC
+> Quelle: `../bw-doku-2026-10-19/mdg/NAFv4-ADMBw-MDG-2026.05.xml` — automatisch erzeugt am 2026-10-19 05:45:34 UTC
 > 225 Tags an 66 Stereotypen
 
 | Stereotype | Tag | Typ | Erlaubte Werte | Default | Beschreibung |
@@ -88,7 +88,7 @@
 | Capability | AbstractionLevel | enumeration | not set,0,1,2,3,4,5,6,R |  |  |
 | CapabilityConfiguration | Avoiding redundancy in IT-SysBw | enumeration | gegeben,nicht gegeben (bewusst),nicht gegeben (Harmonisierung geplant),keine Relevanz,not set |  |  |
 | CapabilityConfiguration | Avoids provider monopoly | enumeration | Ja,Nein,keine Relevanz,not set |  |  |
-| CapabilityConfiguration | Client separation | enumeration | Rechte- und Rollenmanagement,dedizierte virtuelle Server,dedizierte Plattenpartitionen,dedizierte virtuelle LANs,unterschiedliche Verschlüsselung in den Datenbereichen,physische Tr |  |  |
+| CapabilityConfiguration | Client separation | enumeration | Rechte- und Rollenmanagement,dedizierte virtuelle Server,dedizierte Plattenpartitionen,dedizierte virtuelle LANs,unterschiedliche Verschlüsselung in den Datenbereichen,physische Trennung,keine,keine Relevanz,not set |  |  |
 | CapabilityConfiguration | Environmentally friendly and sustainable | enumeration | Ja,Nein,keine Relevanz,not set |  |  |
 | CapabilityConfiguration | Fulfilled C5 requirements catalogue of the BSI | enumeration | Ja,Nein,keine Relevanz,not set |  |  |
 | CapabilityConfiguration | Geodata and geoservices | enumeration | Standard-konform,nicht Standard-konform,keine Relevanz,not set |  |  |
@@ -148,7 +148,7 @@
 | Location | customKind | String |  |  |  |
 | Location | kind | enumeration | CircularAreaType,ElipticalAreaType,GeoStationaryPointType,LineType,OtherType,PlanarSurfaceType,PointType,PolygonAreaType,RectangularAreaType,SolidVolumeType,SurfaceType |  |  |
 | Measurement | ITSD_ServiceClass | enumeration | not set,Serviceklasse 1,Serviceklasse 2,Serviceklasse 3 | not set |  |
-| MeasurementType | ITSD_Group | enumeration | Bezugszeitraum,Individuelle Serviceeigenschaft,Kontinuität,Kapazität,Serviceabruftermintrue,Servicekalender,Serviceleistungsfähigkeit,Servicesicherheit,Serviceverfügbarkeit,Service | Individuelle Serviceeigenschaft |  |
+| MeasurementType | ITSD_Group | enumeration | Bezugszeitraum,Individuelle Serviceeigenschaft,Kontinuität,Kapazität,Serviceabruftermintrue,Servicekalender,Serviceleistungsfähigkeit,Servicesicherheit,Serviceverfügbarkeit,Servicewiederherstellbarkeit,Servicezuverlässigkeit,Sicherheit,Verfügbarkeit | Individuelle Serviceeigenschaft |  |
 | Metadata | dublinCoreElement | String |  |  |  |
 | Metadata | metaDataScheme | String |  |  |  |
 | Metadata | name | String |  |  |  |
@@ -195,7 +195,7 @@
 | ResourceExchange | exchangeKind | enumeration | ResourceCommunication,ResourceMovment,ResourceEnergyFlow,GeoPoliticalExtentExchange |  |  |
 | ResourcePerformer | AbstractionLevel | enumeration | not set,0,1,2,3,4,5,6,R |  |  |
 | ResourcePort | Richardson Maturity Model | enumeration | Level 0,Level 1,Level 2,Level 3,keine Relevanz,not set |  |  |
-| ResourceRole | roleKind | enumeration | Part,Component,Used Configuration,Used Physical Architecture,Human Resource,Platform,System,Sub Organisation,Post Role,Responsibiliy Role,Equipment,Sub System Part,Hosted Software, |  |  |
+| ResourceRole | roleKind | enumeration | Part,Component,Used Configuration,Used Physical Architecture,Human Resource,Platform,System,Sub Organisation,Post Role,Responsibiliy Role,Equipment,Sub System Part,Hosted Software,Artifact Compoment,Natural Resource Component,Other |  |  |
 | ResourceRole | Virtualization level | enumeration | vollständige Virtualisierung,Paravirtualisierung,Betriebssystemvirtualisierung,nicht virtualisiert,keine Relevanz,not set |  |  |
 | ResourceRole | Virtualization location | enumeration | Bare Metal,Hosted,keine Virtualisierung,keine Relevanz,not set |  |  |
 | ResourceRole | SecurityDomain | String |  |  |  |

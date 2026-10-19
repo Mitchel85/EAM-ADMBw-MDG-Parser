@@ -16,18 +16,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download official ADMBw MDG
+      - name: Verify official MDG fixture checksum
         run: |
-          curl -fsSL \
-            "https://www.bundeswehr.de/resource/blob/5570648/86b87446ff3b144de324f1dde2d85521/admbw-mdg-nafv4--data.zip" \
-            -o /tmp/admbw-mdg-nafv4.zip
-          unzip -q /tmp/admbw-mdg-nafv4.zip -d /tmp/mdg
-          test -f /tmp/mdg/NAFv4-ADMBw-MDG-2026.05.xml
+          echo "c014ceda600b5bb9e42c2a8e58f02bf9655e8fe9b6a5e8df6a28693b3b701c84  tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml" \
+            | sha256sum -c -
 
       - name: Extract twice and prove reproducibility
         run: |
-          python3 mdg_parser.py /tmp/mdg/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-a --no-timestamp
-          python3 mdg_parser.py /tmp/mdg/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-b --no-timestamp
+          python3 mdg_parser.py tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-a --no-timestamp
+          python3 mdg_parser.py tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-b --no-timestamp
           diff -ru /tmp/mdg-a /tmp/mdg-b
 
       - name: Checkout downstream KB repos
