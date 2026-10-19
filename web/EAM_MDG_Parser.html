@@ -94,12 +94,14 @@
       <button class="tab" data-p="topo">Topologie</button>
       <button class="tab" data-p="vp">Viewpoints</button>
       <button class="tab" data-p="tag">Tag-Typen</button>
+      <button class="tab" data-p="stag">Stereotyp-Tags</button>
     </div>
 
     <div class="panel" id="p-stereo"></div>
     <div class="panel" id="p-topo" hidden></div>
     <div class="panel" id="p-vp" hidden></div>
     <div class="panel" id="p-tag" hidden></div>
+    <div class="panel" id="p-stag" hidden></div>
 
     <div class="phead" style="margin-top:16px">
       <h3>📥 KI-lesbare Regeldateien (Markdown)</h3>
@@ -113,10 +115,12 @@
 
 <script>
 'use strict';
-var DATA = { stereo: [], topo: [], vp: [], tag: [], src: '' };
+var DATA = { stereo: [], topo: [], vp: [], tag: [], stag: [], src: '' };
 var MD_OUT = {};
 
 function $(id){ return document.getElementById(id); }
+
+function uniq(a){ var u = [], seen = {}; for (var i = 0; i < a.length; i++) if (!seen[a[i]]) { seen[a[i]] = 1; u.push(a[i]); } return u.sort(); }
 function toast(msg){
   var t = $('toast'); t.textContent = msg; t.hidden = false;
   clearTimeout(t._tm); t._tm = setTimeout(function(){ t.hidden = true; }, 2600);
@@ -195,7 +199,7 @@ function parseMdg(text){
     throw new Error('Keine MDG-Technologie-Datei — Root-Element ist ' +
       (root ? '<' + localName(root) + '>' : 'nicht vorhanden') + ', erwartet <MDG.Technology>');
   }
-  var d = { stereo: [], topo: [], vp: [], tag: [] };
+  var d = { stereo: [], topo: [], vp: [], tag: [], stag: [] };
 
   /* 1) Stereotyp-Katalog (nur UMLProfiles; generalizes + baseStereotypes) */
   var sts = modelStereos(root);
@@ -230,8 +234,10 @@ function parseMdg(text){
     });
   }
 
-  /* 2) Topologie (Metaconstraints je Modell-Stereotype; client=Quelle, supplier=Ziel) */
+  /* 2) Topologie (Metaconstraints je Modell-Stereotype; alle UML-Endrollen) */
   var uniq = function(a){ var u = [], seen2 = {}; for (var q = 0; q < a.length; q++) if (!seen2[a[q]]) { seen2[a[q]] = 1; u.push(a[q]); } return u.sort(); };
+  var SRC_ROLES = { client: 1, source: 1, 'end[0].role': 1, informationSource: 1 };
+  var TGT_ROLES = { supplier: 1, target: 1, 'end[1].role': 1, informationTarget: 1 };
   var seenT = {};
   for (i = 0; i < sts.length; i++) {
     var s = sts[i];
@@ -243,11 +249,16 @@ function parseMdg(text){
     for (var m = 0; m < mcs.length; m++) {
       var mlist = allNS(mcs[m], 'metaconstraint');
       for (var k = 0; k < mlist.length; k++) {
-        var role = mlist[k].getAttribute('umlRole');
-        var con = (mlist[k].getAttribute('constraint') || '').split('::').pop();
-        if (role === 'client') clients.push(con);
-        else if (role === 'supplier') suppliers.push(con);
-        else if (con) others.push(role + ' → ' + con);
+        var role = mlist[k].getAttribute('umlRole') || '';
+        var raw = mlist[k].getAttribute('constraint') || '';
+        var parts = raw.split(';');
+        for (var pi = 0; pi < parts.length; pi++) {
+          var con = parts[pi].split('::').pop().trim();
+          if (!con) continue;
+          if (SRC_ROLES[role]) clients.push(con);
+          else if (TGT_ROLES[role]) suppliers.push(con);
+          else others.push(role + ' → ' + con);
+        }
       }
     }
     if (clients.length || suppliers.length || others.length) {
@@ -298,6 +309,28 @@ function parseMdg(text){
       }
     }
   }
+  /* 5) Konkrete Tags je Stereotyp (TaggedValues/Tag) */
+  for (i = 0; i < sts.length; i++) {
+    var stg = sts[i];
+    var stgName = (stg.getAttribute('name') || '').trim();
+    if (!stgName) continue;
+    var tvs = childrenOf(stg, 'TaggedValues');
+    for (var tv = 0; tv < tvs.length; tv++) {
+      var tlist = childrenOf(tvs[tv], 'Tag');
+      for (var tg = 0; tg < tlist.length; tg++) {
+        var tn = (tlist[tg].getAttribute('name') || '').trim();
+        if (!tn) continue;
+        d.stag.push({
+          stereo: stgName,
+          tag: tn,
+          type: (tlist[tg].getAttribute('type') || '').trim(),
+          values: (tlist[tg].getAttribute('values') || '').trim(),
+          def: (tlist[tg].getAttribute('default') || '').trim(),
+          desc: clean(tlist[tg].getAttribute('description') || '')
+        });
+      }
+    }
+  }
   return d;
 }
 
@@ -323,11 +356,11 @@ function buildMarkdown(){
     '> Quelle: `' + src + '` — automatisch erzeugt am ' + now + ' (Web-Parser)',
     '> ' + DATA.topo.length + ' Stereotype mit Beziehungsregeln (Metaconstraints) · ' + complete + ' vollständig (Quelle und Ziel)', '',
     '## Lesart', '',
-    '- **Quelle (client):** Nur die gelisteten Stereotype sind als Quelle (client) einer Beziehung dieses Stereotyps erlaubt.',
-    '- **Ziel (supplier):** Nur die gelisteten Stereotype sind als Ziel (supplier) einer Beziehung dieses Stereotyps erlaubt.',
+    '- **Quelle:** client, source, end[0].role oder informationSource — je nach UML-Metaklasse.',
+    '- **Ziel:** supplier, target, end[1].role oder informationTarget — je nach UML-Metaklasse.',
     '- **Weitere Rollen:** zusätzliche Metamodell-Beschränkungen (Rollennamen direkt aus der MDG).',
     '- **Vollständigkeit:** Nur Regeln mit Quelle **und** Ziel (' + complete + ' von ' + DATA.topo.length + ') sind maschinell prüfbar; Regeln mit ausschließlich „Weiteren Rollen“ dienen als Referenz.', '',
-    '| Stereotype | Quelle (client) | Ziel (supplier) | Weitere Rollen |',
+    '| Stereotype | Erlaubte Quellen (client/source/end[0]) | Erlaubte Ziele (supplier/target/end[1]) | Weitere Rollen |',
     '|---|---|---|---|'];
   DATA.topo.forEach(function(t){ L.push('| ' + mdEsc(t.name) + ' | ' + mdEsc(t.clients.join(', ')) + ' | ' + mdEsc(t.suppliers.join(', ')) + ' | ' + mdEsc(t.others.join(', ')) + ' |'); });
   out['admbw-knowledge-topology.md'] = L.join('\n');
@@ -354,6 +387,14 @@ function buildMarkdown(){
   DATA.tag.forEach(function(e){ L.push('| ' + mdEsc(e.name) + ' | ' + mdEsc(e.ds) + ' | ' + mdEsc(e.desc.slice(0, 100)) + ' | ' + mdEsc(e.notes.slice(0, 160)) + ' |'); });
   out['admbw-knowledge-tagtypes.md'] = L.join('\n');
 
+  L = ['# ADMBw-Stereotyp-Tags (MDG-TaggedValues)', '',
+    '> Quelle: `' + src + '` — automatisch erzeugt am ' + now + ' (Web-Parser)',
+    '> ' + DATA.stag.length + ' Tags an ' + uniq(DATA.stag.map(function(t){ return t.stereo; })).length + ' Stereotypen', '',
+    '| Stereotype | Tag | Typ | Erlaubte Werte | Default | Beschreibung |',
+    '|---|---|---|---|---|---|'];
+  DATA.stag.forEach(function(t){ L.push('| ' + mdEsc(t.stereo) + ' | ' + mdEsc(t.tag) + ' | ' + mdEsc(t.type) + ' | ' + mdEsc(t.values) + ' | ' + mdEsc(t.def) + ' | ' + mdEsc(t.desc.slice(0, 120)) + ' |'); });
+  out['admbw-knowledge-stereotype-tags.md'] = L.join('\n');
+
   L = ['# ADMBw-MDG-Extraktion — Metadaten', '',
     '- **MDG-Datei:** `' + src + '`',
     '- **MDG-Version (aus Dateiname):** ' + src,
@@ -363,7 +404,8 @@ function buildMarkdown(){
     '- **Davon mit Metatype:** ' + withMeta + (noMeta ? ' (' + DATA.stereo.filter(function(s){ return !s.meta; }).length + ' ohne: ' + noMeta + ')' : ''),
     '- **Stereotype mit Topologie-Regeln:** ' + DATA.topo.length + ' (davon ' + complete + ' vollständig mit Quelle und Ziel)',
     '- **Viewpoints:** ' + DATA.vp.length + ' (DiagramProfile ohne Diagramm-Artefakt „Business Process“)',
-    '- **Property-Typen:** ' + DATA.tag.length, '',
+    '- **Property-Typen:** ' + DATA.tag.length,
+    '- **Stereotyp-Tags:** ' + DATA.stag.length + ' an ' + uniq(DATA.stag.map(function(t){ return t.stereo; })).length + ' Stereotypen', '',
     'Zählweise: Die MDG enthält die Stereotype in drei getrennten Bereichen —',
     DATA.stereo.length + ' Deklarationen in UMLProfiles (das Modellprofil, der eigentliche Katalog),',
     '271 Elemente in UIToolboxes (125 UI-Toolbox-Seiten, keine Modell-Stereotype) und',
@@ -384,7 +426,8 @@ function renderStats(){
     ['Stereotype', DATA.stereo.length, ''],
     ['Topologie-Regeln · ' + complete + ' vollständig', DATA.topo.length, 'amber'],
     ['Viewpoints', DATA.vp.length, 'green'],
-    ['Tag-Typen', DATA.tag.length, '']
+    ['Tag-Typen', DATA.tag.length, ''],
+    ['Stereotyp-Tags', DATA.stag.length, '']
   ];
   $('stats').innerHTML = items.map(function(it){
     return '<div class="stat ' + it[2] + '"><b>' + it[1] + '</b><span>' + escHtml(it[0]) + '</span></div>';
@@ -421,13 +464,19 @@ function renderPanels(){
     '<div class="phead"><h3>Tagged-Value-Typen <span class="count">(' + DATA.tag.length + ')</span></h3></div>' +
     mkTable(['Property','Datensatz','Einschränkungen (aus MDG)'],
       DATA.tag.map(function(e){ return [escHtml(e.name), escHtml(e.ds), escHtml(e.notes.slice(0, 140))]; }));
+
+  $('p-stag').innerHTML =
+    '<div class="phead"><h3>Stereotyp-Tags <span class="count">(' + DATA.stag.length + ')</span></h3>' +
+    '<div class="tools"><input class="search" placeholder="Suchen …" oninput="filterTable(this.value, \'stagbody\')"></div></div>' +
+    mkTable(['Stereotype','Tag','Typ','Erlaubte Werte','Default'],
+      DATA.stag.map(function(t){ return [escHtml(t.stereo), escHtml(t.tag), escHtml(t.type), escHtml(t.values), escHtml(t.def)]; })).replace('<tbody>', '<tbody id="stagbody">');
 }
 
 function renderDl(){
-  var names = ['admbw-knowledge-stereotypes.md','admbw-knowledge-topology.md','admbw-knowledge-viewpoints.md','admbw-knowledge-tagtypes.md','admbw-meta.md'];
+  var names = ['admbw-knowledge-stereotypes.md','admbw-knowledge-topology.md','admbw-knowledge-viewpoints.md','admbw-knowledge-tagtypes.md','admbw-knowledge-stereotype-tags.md','admbw-meta.md'];
   $('dlbtns').innerHTML = names.map(function(n){
     return '<button class="btn small" onclick="downloadMd(\'' + n + '\')">⬇ ' + n + '</button>';
-  }).join('') + '<button class="btn small primary" onclick="downloadAll()">⬇ Alle 5</button>';
+  }).join('') + '<button class="btn small primary" onclick="downloadAll()">⬇ Alle 6</button>';
 }
 
 function download(name, content){
@@ -450,7 +499,7 @@ function filterTable(q, tbodyId){
 
 /* Bei Fehler: alte Ergebnisse verwerfen und ausblenden. */
 function resetResults(){
-  DATA = { stereo: [], topo: [], vp: [], tag: [], src: '' };
+  DATA = { stereo: [], topo: [], vp: [], tag: [], stag: [], src: '' };
   MD_OUT = {};
   $('result').hidden = true;
   $('srcfile').textContent = 'keine Datei geladen';

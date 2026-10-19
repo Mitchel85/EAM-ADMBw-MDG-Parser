@@ -60,7 +60,7 @@ python3 scripts/check_kb_sync.py /tmp/mdg-a ../EAM-AI-ADMBw-Extractor ../EAM-AI-
 
 ## Online-Version (GitHub Pages)
 
-Dieselbe Extraktion läuft auch **direkt im Browser** — keine Installation, 100 % lokal:
+Dieselbe Extraktion läuft auch **direkt im Browser** — keine Installation, 100 % lokal, inklusive Stereotyp-Tags:
 
 **▶️ https://mitchel85.github.io/EAM-ADMBw-MDG-Parser/** (`web/EAM_MDG_Parser.html`)
 
