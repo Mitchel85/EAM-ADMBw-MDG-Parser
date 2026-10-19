@@ -11,7 +11,7 @@ Aufruf:
 
 Erzeugt im Ausgabeordner:
     admbw-knowledge-stereotypes.md   Stereotyp-Katalog (nur UMLProfiles; Name, Metatype, Vererbung, AppliesTo)
-    admbw-knowledge-topology.md      Topologie-Regeln (Metaconstraints: Quelle (client) / Ziel (supplier))
+    admbw-knowledge-topology.md      Topologie-Regeln (Metaconstraints: Quelle / Ziel, inkl. source/target/end-Rollen)
     admbw-knowledge-viewpoints.md    52 Viewpoints (DiagramProfile, ohne Diagramm-Artefakt „Business Process“)
     admbw-knowledge-tagtypes.md      Property-Typen (Tagged-Value-Definitionen mit Typeregeln)
     admbw-meta.md                    Quelle, Extraktionszeitpunkt, Statistiken
@@ -109,12 +109,18 @@ def extract_stereotypes(root):
 
 
 def extract_topology(root):
-    """Metaconstraints je Modell-Stereotype: client=Quelle, supplier=Ziel.
+    """Metaconstraints je Modell-Stereotype: Quelle/Ziel über alle UML-Endrollen.
 
-    Nur ``UMLProfiles`` wird ausgewertet (keine Toolbox-Seiten). ``complete``
-    kennzeichnet Regeln, bei denen sowohl Quelle als auch Ziel belegt sind;
-    nur diese sind für eine automatische Kantenprüfung entscheidbar.
+    Die MDG verwendet je nach Metaklasse unterschiedliche Endrollen:
+      client/supplier, source/target, end[0].role/end[1].role,
+      informationSource/informationTarget.
+    Diese werden auf Quelle/Ziel normalisiert; nur Regeln mit beiden Enden sind
+    für eine automatische Kantenprüfung entscheidbar. ``complete`` kennzeichnet
+    genau diese Regeln.
     """
+    source_roles = {'client', 'source', 'end[0].role', 'informationSource'}
+    target_roles = {'supplier', 'target', 'end[1].role', 'informationTarget'}
+    endpoint_roles = source_roles | target_roles
     rules, seen = [], set()
     for st in model_stereotypes(root):
         name = (st.get('name') or '').strip()
@@ -124,16 +130,21 @@ def extract_topology(root):
         clients, suppliers, others = [], [], []
         for mcb in [c for c in st if tag(c) == 'metaconstraints']:
             for mc in [c for c in mcb if tag(c) == 'metaconstraint']:
-                role = mc.get('umlRole')
-                target = mc.get('constraint') or ''
-                # Pfad kürzen: 'NAFv4-ADMBw::ActualState' -> 'ActualState'
-                short = target.split('::')[-1] if '::' in target else target
-                if role == 'client':
-                    clients.append(short)
-                elif role == 'supplier':
-                    suppliers.append(short)
-                elif short:
-                    others.append(f"{role} → {short}")
+                role = mc.get('umlRole') or ''
+                raw = mc.get('constraint') or ''
+                # Mehrere erlaubte Ziele stehen semikolon-getrennt; Pfad kürzen.
+                targets = []
+                for part in raw.split(';'):
+                    short = part.split('::')[-1].strip()
+                    if short:
+                        targets.append(short)
+                if role in source_roles:
+                    clients.extend(targets)
+                elif role in target_roles:
+                    suppliers.extend(targets)
+                elif role not in endpoint_roles:
+                    for short in targets:
+                        others.append(f"{role} → {short}")
         if clients or suppliers or others:
             rules.append({
                 'name': name,
@@ -223,12 +234,12 @@ def build_md(st, topo, vps, enums, src, version_hint, ts, ctx):
         "",
         "## Lesart",
         "",
-        "- **Quelle (client):** Nur die gelisteten Stereotype sind als Quelle (client) einer Beziehung dieses Stereotyps erlaubt.",
-        "- **Ziel (supplier):** Nur die gelisteten Stereotype sind als Ziel (supplier) einer Beziehung dieses Stereotyps erlaubt.",
+        "- **Quelle:** client, source, end[0].role oder informationSource — je nach UML-Metaklasse.",
+        "- **Ziel:** supplier, target, end[1].role oder informationTarget — je nach UML-Metaklasse.",
         "- **Weitere Rollen:** zusätzliche Metamodell-Beschränkungen (Rollennamen direkt aus der MDG).",
         f"- **Vollständigkeit:** Nur Regeln mit Quelle **und** Ziel ({n_complete} von {len(topo)}) sind maschinell prüfbar; Regeln mit ausschließlich „Weiteren Rollen“ dienen als Referenz.",
         "",
-        "| Stereotype | Quelle (client) | Ziel (supplier) | Weitere Rollen |",
+        "| Stereotype | Erlaubte Quellen (client/source/end[0]) | Erlaubte Ziele (supplier/target/end[1]) | Weitere Rollen |",
         "|---|---|---|---|",
     ]
     for t in topo:
