@@ -16,7 +16,7 @@ Erzeugt im Ausgabeordner:
     admbw-knowledge-tagtypes.md      Property-Typen (Tagged-Value-Definitionen mit Typeregeln)
     admbw-knowledge-stereotype-tags.md Konkrete Tags je Stereotyp (Typ, Werte, Default)
     admbw-meta.md                    Quelle, Extraktionszeitpunkt, Statistiken
-    admbw-prompt-pack.md             Selbsttragendes Regelwerk für Chatbots (Prosa → Modell)
+    admbw-prompt.md                  Arbeitsanweisung für Chatbots (verweist auf die Regeldateien)
 
 Reproduzierbarkeit: Mit --no-timestamp (oder gesetzter SOURCE_DATE_EPOCH) sind
 zwei Läufe byte-identisch. Nur Dateien mit Root-Element <MDG.Technology> werden
@@ -305,6 +305,24 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     ]
     out['admbw-knowledge-stereotypes.md'] += "\n" + "\n".join(lines)
 
+    # 1c) Auflösung abstrakter Typen — bewusst als Liste, nicht als Tabelle:
+    # Prüfprogramme zählen Pipe-Zeilen der ersten Tabelle und dürfen hier nicht brechen.
+    lines = [
+        "",
+        "## Abstrakte Stereotype und ihre konkreten Subtypen",
+        "",
+        "🔒-Typen dürfen nicht instanziiert werden. Nennt eine Topologie-Regel einen "
+        "abstrakten Endpunkt, gelten die aufgeführten konkreten Subtypen.",
+        "",
+    ]
+    for s in st:
+        if not s['abstract']:
+            continue
+        concrete = sorted(c for c in all_children(s['name'])
+                          if c in by_name and not by_name[c]['abstract'])
+        lines.append(f"- 🔒 **{s['name']}** → {', '.join(concrete) if concrete else '– (nicht anwendbar)'}")
+    out['admbw-knowledge-stereotypes.md'] += "\n" + "\n".join(lines)
+
     # 2) Topologie
     n_complete = sum(1 for t in topo if t['complete'])
     lines = [
@@ -480,42 +498,28 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     return out
 
 
-def _short(s, limit=140):
-    """Ersten Satz (max. limit Zeichen) — für die Prompt-Fassung."""
-    s = clean(s)
-    if len(s) <= limit:
-        return s
-    cut = s[:limit]
-    if '. ' in cut:
-        return cut.rsplit('. ', 1)[0] + '.'
-    return cut.rstrip(' ,;:') + ' …'
+def build_prompt_doc(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
+    """Kompakter Prompt-Kopf für Chatbots — verweist auf die Regeldateien.
 
-
-def build_prompt_pack(st, topo, vps, enums, tags, src, version_hint, ts, ctx, scope='full'):
-    """Ein selbsttragendes Markdown-Dokument für Chatbots (Prosa → Modell).
-
-    Bewusst eine eigene *View* auf dieselben Daten wie build_md(): Der Pack ist
-    kopier-/uploadbar, ohne dass fünf Einzeldateien mitgeschickt werden müssen.
-    Die Einzeldateien bleiben die vollständige Referenz.
+    Enthält bewusst *keine* Kopie des Katalogs: Die Regeldateien bleiben die
+    einzige Datenquelle, dieses Dokument ist die Arbeitsanweisung.
     """
-    parents, children, all_children = stereotype_maps(st)
-    by_name = {s['name']: s for s in st}
     abstract = [s for s in st if s['abstract']]
     n_complete = sum(1 for t in topo if t['complete'])
-
-    stamp = f" · erzeugt {ts}" if ts else " · ohne Zeitstempel"
     base_name = os.path.basename(src)
     release = base_name[:-4].split('-')[-1] if base_name.endswith('.xml') else version_hint
     if not (release and release[0].isdigit()):
         release = version_hint
+    stamp = f" · erzeugt {ts}" if ts else " · ohne Zeitstempel"
+
     L = [
-        "# ADMBw-Regelwerk — Prompt-Pack",
+        "# ADMBw-Regelwerk — Prompt",
         "",
         f"> MDG-Version {release} · {len(st)} Stereotype · {len(abstract)} abstrakt · "
         f"Quelle `{base_name}`{stamp}",
         "",
-        "Dieses Dokument ist selbsttragend: Es enthält das vollständige ADMBw-Regelwerk "
-        "(NAFv4) für die Modellierung aus Prosa. Keine weiteren Dateien nötig.",
+        "Dieses Dokument ist die Arbeitsanweisung. Die Regeln selbst stehen in den "
+        "Regeldateien daneben — sie werden nicht hierher kopiert.",
         "",
         "## Auftrag",
         "",
@@ -525,13 +529,16 @@ def build_prompt_pack(st, topo, vps, enums, tags, src, version_hint, ts, ctx, sc
         "",
         "## Eiserne Regeln",
         "",
-        "1. Keinen Stereotyp erfinden — nur Namen aus dem Katalog unten.",
+        "1. Keinen Stereotyp erfinden — nur Namen aus `admbw-knowledge-stereotypes.md`.",
         "2. Abstrakte Stereotype (🔒) nie instanziieren. Immer einen konkreten Subtyp "
-        "wählen (Abschnitt „Abstrakte Stereotype“).",
-        "3. Jede Beziehung gegen eine Topologie-Regel prüfen: Quelle = client/source/end[0], "
-        "Ziel = supplier/target/end[1]. Zeilen mit nur „Weitere Rollen“ sind keine Kanten-Regel.",
+        "wählen (Abschnitt „Abstrakte Stereotype und ihre konkreten Subtypen“).",
+        "3. Jede Beziehung gegen eine Regel in `admbw-knowledge-topology.md` prüfen: "
+        "Quelle = client/source/end[0], Ziel = supplier/target/end[1]. "
+        "Zeilen mit nur „Weitere Rollen“ sind keine Kanten-Regel.",
         "4. Nennt eine Regel einen abstrakten Endpunkt, sind alle seine konkreten Subtypen zulässig.",
-        "5. Schreibvarianten vor dem Namensvergleich normalisieren (Abschnitt „Aliases“).",
+        "5. Schreibvarianten vor dem Namensvergleich normalisieren (`admbw-aliases.json`): "
+        "`PropertySetGeneralisation` → `PropertySetGeneralization`, "
+        "`ServiceSpecificationGeneralization` → `ServiceGeneralization`.",
         "6. Jede Aussage mit der Regelzeile belegen — keine ungeprüften ✓-Behauptungen.",
         "",
         "## Ausgabeformat",
@@ -540,127 +547,34 @@ def build_prompt_pack(st, topo, vps, enums, tags, src, version_hint, ts, ctx, sc
         "- **Beziehungen:** Quelle | Stereotyp | Ziel | erlaubt durch (Regelzeile)",
         "- **Offene Punkte:** was der Prosa-Text nicht hergibt",
         "",
-        "---",
+        "## Dateien des Regelwerks",
         "",
-        "## 1. Stereotyp-Katalog",
+        "| Datei | Inhalt | Umfang |",
+        "|---|---|---|",
+        "| `admbw-knowledge-stereotypes.md` | Stereotyp-Katalog (Metatype, AppliesTo, "
+        f"Eltern, 🔒, Beschreibung) | {len(st)} Stereotype |",
+        "| `admbw-knowledge-topology.md` | Beziehungsregeln (Quelle/Ziel/weitere Rollen) | "
+        f"{len(topo)} Regeln, {n_complete} vollständig |",
+        f"| `admbw-knowledge-viewpoints.md` | NAFv4-Viewpoints | {len(vps)} |",
+        f"| `admbw-knowledge-tagtypes.md` | Tagged-Value-Definitionen | {len(enums)} Property-Typen |",
+        f"| `admbw-knowledge-stereotype-tags.md` | Konkrete Tags je Stereotyp | {len(tags)} Tags |",
+        "| `admbw-meta.md` | Quelle, Version, Kennzahlen | – |",
+        "| `admbw-stereotypes.json` | Maschinenlesbar: `abstract`, `parents`, `appliesTo`, "
+        f"`concreteDescendants` | {len(st)} Einträge |",
+        "| `admbw-aliases.json` | Schreibvarianten → kanonischer Name | 2 Einträge |",
         "",
-        f"{len(st)} Modell-Stereotype. 🔒 = abstrakt, nicht instanziierbar.",
+        "## Arbeitsweise",
         "",
-        "| Stereotype | Metatype | AppliesTo | 🔒 | Beschreibung |",
-        "|---|---|---|---|---|",
-    ]
-    for s in st:
-        L.append(
-            f"| {md_escape(s['name'])} | {md_escape(s['metatype']) or '–'} | "
-            f"{', '.join(s['applies']) or '–'} | {'🔒 ja' if s['abstract'] else '–'} | "
-            f"{md_escape(_short(s['notes']))} |"
-        )
-
-    # Abstrakte Typen mit Auflösung — der praktisch wichtigste Block
-    L += [
+        "1. Prosa lesen, Elemente und Beziehungen identifizieren.",
+        "2. Für jedes Element ein **konkretes** Stereotyp wählen (kein 🔒).",
+        "3. Jede Beziehung gegen die Topologie prüfen; abstrakte Endpunkte auflösen.",
+        "4. Lücken und Mehrdeutigkeiten im Prosatext als offene Punkte ausweisen.",
         "",
-        "## 2. Abstrakte Stereotype (🔒) — nicht instanziierbar",
+        "## Hinweis",
         "",
-        "Diese Typen dürfen weder als Element- noch als Kanten-Stereotyp verwendet werden. "
-        "Für eine Regel mit abstraktem Endpunkt gelten alle aufgeführten konkreten Subtypen.",
-        "",
-        "| Abstrakter Typ | Konkrete Subtypen |",
-        "|---|---|",
-    ]
-    for s in abstract:
-        concrete = sorted(c for c in all_children(s['name'])
-                          if c in by_name and not by_name[c]['abstract'])
-        L.append(f"| 🔒 {s['name']} | {', '.join(concrete) if concrete else '– (nicht anwendbar)'} |")
-
-    L += [
-        "",
-        "## 3. Topologie-Regeln",
-        "",
-        f"{len(topo)} Stereotype mit Beziehungsregeln, davon {n_complete} vollständig "
-        "(Quelle und Ziel). Nur vollständige Regeln sind maschinell prüfbar.",
-        "",
-        "| Stereotype | Erlaubte Quellen (client/source/end[0]) | "
-        "Erlaubte Ziele (supplier/target/end[1]) | Weitere Rollen |",
-        "|---|---|---|---|",
-    ]
-    for t in topo:
-        L.append(
-            f"| {md_escape(t['name'])} | {', '.join(t['clients']) or '–'} | "
-            f"{', '.join(t['suppliers']) or '–'} | {', '.join(t['others']) or '–'} |"
-        )
-
-    if scope == 'full':
-        L += [
-            "",
-            "## 4. Viewpoints",
-            "",
-            f"{len(vps)} NAFv4-Viewpoints (DiagramProfile).",
-            "",
-        ]
-        for v in vps:
-            L.append(f"### {v['name']}")
-            if v['notes']:
-                L.append(v['notes'][:220])
-            L.append("")
-
-        L += [
-            "## 5. Tagged-Value-Definitionen",
-            "",
-            f"{len(enums)} Property-Typen.",
-            "",
-            "| Property | Datensatz | Beschreibung | Einschränkungen (aus MDG) |",
-            "|---|---|---|---|",
-        ]
-        for e in enums:
-            L.append(
-                f"| {md_escape(e['name'])} | {md_escape(e['dataset'])} | "
-                f"{md_escape(e['desc'][:100])} | {md_escape(e['notes'][:160])} |"
-            )
-
-        L += [
-            "",
-            "## 6. Stereotyp-Tags",
-            "",
-            f"{len(tags)} Tags an {len(set(t['stereotype'] for t in tags))} Stereotypen.",
-            "",
-            "| Stereotype | Tag | Typ | Erlaubte Werte | Default |",
-            "|---|---|---|---|---|",
-        ]
-        for t in tags:
-            L.append(
-                f"| {md_escape(t['stereotype'])} | {md_escape(t['tag'])} | "
-                f"{md_escape(t['type'])} | {md_escape(t['values']) or '–'} | "
-                f"{md_escape(t['default']) or '–'} |"
-            )
-    else:
-        L += [
-            "",
-            "## 4. Nicht enthalten (Scope `core`)",
-            "",
-            "Viewpoints, Tagged-Value-Definitionen und Stereotyp-Tags sind in dieser "
-            "Kurzfassung weggelassen. Für Attribut- und Viewpoint-Modellierung die "
-            "Einzeldateien `admbw-knowledge-viewpoints.md`, `admbw-knowledge-tagtypes.md` "
-            "und `admbw-knowledge-stereotype-tags.md` verwenden.",
-            "",
-        ]
-
-    L += [
-        "## 7. Aliases",
-        "",
-        "| Schreibvariante | Kanonischer Name |",
-        "|---|---|",
-        "| PropertySetGeneralisation | PropertySetGeneralization |",
-        "| ServiceSpecificationGeneralization | ServiceGeneralization |",
-        "",
-        "## 8. Kennzahlen",
-        "",
-        f"- Stereotype: {len(st)} (davon {len(abstract)} abstrakt)",
-        f"- Topologie-Regeln: {len(topo)} (davon {n_complete} vollständig)",
-        f"- Viewpoints: {len(vps)}",
-        f"- Property-Typen: {len(enums)}",
-        f"- Stereotyp-Tags: {len(tags)}",
-        "",
-        f"Quelle: offizielle ADMBw-MDG-Technologie (BAAINBw), Datei `{os.path.basename(src)}`.",
+        "Tool-spezifische Anweisungen (Modus, Ausgabeformat, Diagrammtyp) stehen im "
+        "Prompt des jeweiligen Werkzeugs und ergänzen dieses Dokument. Bei Widerspruch "
+        "gilt dieses Regelwerk.",
     ]
     return "\n".join(L)
 
@@ -671,13 +585,8 @@ def main():
     ap.add_argument('-o', '--out', default='./output', help="Ausgabeordner (Default: ./output)")
     ap.add_argument('--no-timestamp', action='store_true',
                     help="Keine Zeitstempel in die Ausgabedateien schreiben (reproduzierbare Läufe)")
-    ap.add_argument('--prompt-pack', nargs='?', const='full', default='full',
-                    choices=['full', 'core'],
-                    help="Selbsttragende Chatbot-Datei zusätzlich schreiben "
-                         "(full = alle Regelklassen, core = Stereotype + Topologie; Default: full)")
-    ap.add_argument('--no-prompt-pack', action='store_const', const=None,
-                    dest='prompt_pack',
-                    help="Keine Chatbot-Datei schreiben")
+    ap.add_argument('--no-prompt', action='store_false', dest='prompt',
+                    help="Keine Prompt-Datei (admbw-prompt.md) schreiben")
     args = ap.parse_args()
 
     if not os.path.isfile(args.mdg):
@@ -738,12 +647,9 @@ def main():
 
     docs = build_md(st, topo, vps, enums, tags, args.mdg, version_hint, ts, ctx)
 
-    if args.prompt_pack:
-        pack_name = ('admbw-prompt-pack.md' if args.prompt_pack == 'full'
-                     else 'admbw-prompt-core.md')
-        docs[pack_name] = build_prompt_pack(
-            st, topo, vps, enums, tags, args.mdg, version_hint, ts, ctx,
-            scope=args.prompt_pack)
+    if args.prompt:
+        docs['admbw-prompt.md'] = build_prompt_doc(
+            st, topo, vps, enums, tags, args.mdg, version_hint, ts, ctx)
 
     try:
         os.makedirs(args.out, exist_ok=True)
