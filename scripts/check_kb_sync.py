@@ -1,14 +1,48 @@
 #!/usr/bin/env python3
-"""Prüft, ob die aus dem MDG erzeugte Wissensbasis in den Downstream-Repos
-vollständig und zahlenkonsistent angekommen ist.
+"""Prüft, ob die aus dem MDG erzeugte Wissensbasis vollständig und
+zahlenkonsistent ist — und ob die Downstream-Repos denselben Stand haben.
+
+Verglichen wird gegen eine **Baseline-Datei** (JSON), nicht gegen im Code
+eingebrannte Zahlen. Damit ist eine neue MDG-Version ein meldbarer Zustand
+("Drift") und kein Build-Fehler.
 
 Aufruf:
-    python3 scripts/check_kb_sync.py output downstream/extractor downstream/batch downstream/script-maker
+    python3 scripts/check_kb_sync.py output [downstream ...]
+    python3 scripts/check_kb_sync.py output --baseline schemas/baseline-mdg-2026.05.json
+    python3 scripts/check_kb_sync.py output --label 2027.01 --write-baseline schemas/baseline-mdg-2027.01.json
+    python3 scripts/check_kb_sync.py output --json
+
+Exit-Codes:
+    0  Alles konsistent, Baseline unverändert
+    2  DRIFT: MDG ist neuer als die Baseline (Migration ausstehend, kein Fehler)
+    1  REGRESSION: Zähler gesunken, Struktur unerwartet oder Downstream unsynchron
 """
+import argparse
+import hashlib
+import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
+EXIT_OK = 0
+EXIT_REGRESSION = 1
+EXIT_DRIFT = 2
+
+DEFAULT_BASELINE = Path(__file__).resolve().parent.parent / "schemas" / "baseline-mdg-2026.05.json"
+
+# (Baseline-Schlüssel, Quelldatei, Anzeigename)
+KEYS = [
+    ("stereotypes", "admbw-knowledge-stereotypes.md", "Stereotype"),
+    ("topology", "admbw-knowledge-topology.md", "Topologie"),
+    ("rules_complete", "admbw-knowledge-topology.md", "vollständige Regeln"),
+    ("viewpoints", "admbw-knowledge-viewpoints.md", "Viewpoints"),
+    ("tag_types", "admbw-knowledge-tagtypes.md", "Property-Typen"),
+    ("stereotype_tags", "admbw-knowledge-stereotype-tags.md", "Stereotyp-Tags"),
+]
+
+
+# ---------------------------------------------------------------- Tabellen
 
 def cells(line):
     body = line.strip()
@@ -24,19 +58,19 @@ def table_rows(path):
     return [cells(l) for l in lines[2:]]
 
 
-def parses(text, pattern):
-    return len(re.findall(pattern, text, flags=re.MULTILINE))
+def viewpoints(path):
+    text = path.read_text(encoding="utf-8")
+    return set(re.findall(r"^## (.+)$", text, flags=re.MULTILINE)) - {"Lesart"}
 
 
-def check(cond, msg):
-    print(("PASS  " if cond else "FAIL  ") + msg)
-    if not cond:
-        raise SystemExit(1)
+def fingerprint(names):
+    """Stabiler Fingerprint über eine sortierte Namensliste."""
+    joined = "\n".join(sorted(n for n in names if n))
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
-def read_set(path, min_cols):
-    rows = table_rows(path)
-    return {r[0] for r in rows if len(r) >= min_cols and r[0]}
+def read_set(path):
+    return {r[0] for r in table_rows(path) if r and r[0]}
 
 
 def resolve(root, name):
@@ -47,59 +81,215 @@ def resolve(root, name):
     return candidates[0]
 
 
-def main():
-    if len(sys.argv) < 5:
-        raise SystemExit(__doc__)
-    parser = Path(sys.argv[1])
-    downstream = [Path(p) for p in sys.argv[2:]]
+# ---------------------------------------------------------------- Messung
 
-    st = table_rows(parser / "admbw-knowledge-stereotypes.md")
-    tp = table_rows(parser / "admbw-knowledge-topology.md")
-    tp_complete = [r for r in tp if len(r) >= 4 and r[1] and r[2]]
-    vp = parses((parser / "admbw-knowledge-viewpoints.md").read_text(encoding="utf-8"), r"^## ")
-    tag = table_rows(parser / "admbw-knowledge-tagtypes.md")
-    stag = table_rows(parser / "admbw-knowledge-stereotype-tags.md")
+def metric_block(root: Path):
+    """Liest Zähler, Fingerprints und Namensmengen aus einem Ausgabeverzeichnis."""
+    st_rows = table_rows(root / "admbw-knowledge-stereotypes.md")
+    tp_rows = table_rows(root / "admbw-knowledge-topology.md")
+    tp_complete = [r for r in tp_rows if len(r) >= 4 and r[1] and r[2]]
+    vp_names = viewpoints(root / "admbw-knowledge-viewpoints.md")
+    tag_rows = table_rows(root / "admbw-knowledge-tagtypes.md")
+    stag_rows = table_rows(root / "admbw-knowledge-stereotype-tags.md")
 
-    check(len(st) == 318, f"Parser-Stereotype: {len(st)}/318")
-    check(len(tp) == 203, f"Parser-Topologie: {len(tp)}/203")
-    check(len(tp_complete) == 133, f"Parser vollständige Regeln: {len(tp_complete)}/133")
-    check(vp == 52, f"Parser-Viewpoints: {vp}/52")
-    check(len(tag) == 27, f"Parser-Property-Typen: {len(tag)}/27")
-    check(len(stag) == 225, f"Parser-Stereotyp-Tags: {len(stag)}/225")
+    st_names = {r[0] for r in st_rows if r and r[0]}
+    tp_names = {r[0] for r in tp_rows if r and r[0]}
+    tag_names = {r[0] for r in tag_rows if r and r[0]}
+    stag_pairs = {f"{r[0]}|{r[1]}" for r in stag_rows if len(r) >= 2 and r[0] and r[1]}
 
-    st_names = {r[0] for r in st}
-    tp_names = {r[0] for r in tp}
-    down_st, down_tp = [], []
-    for root in downstream:
-        st_file = resolve(root, "ADMBw-Knowledge-Stereotypes.md")
-        tp_file = resolve(root, "ADMBw-Knowledge-Topology.md")
-        vp_file = resolve(root, "ADMBw-Knowledge-Viewpoints.md")
-        tt_file = resolve(root, "ADMBw-Knowledge-TagTypes.md")
-        check(st_file.is_file(), f"{root}: Stereotype-KB vorhanden")
-        check(tp_file.is_file(), f"{root}: Topologie-KB vorhanden")
-        check(vp_file.is_file(), f"{root}: Viewpoints-KB vorhanden")
-        check(tt_file.is_file(), f"{root}: Tag-Typen-KB vorhanden")
-        dst = table_rows(st_file)
-        dtp = table_rows(tp_file)
-        dvp = parses(vp_file.read_text(encoding="utf-8"), r"^## ")
-        dtt = table_rows(tt_file)
-        dtp_complete = [r for r in dtp if len(r) >= 4 and r[1] and r[2]]
-        check(len(dst) == 318, f"{root}: Stereotype {len(dst)}/318")
-        check(len(dtp) == 203, f"{root}: Topologie {len(dtp)}/203")
-        check(len(dtp_complete) == 133, f"{root}: vollständige Regeln {len(dtp_complete)}/133")
-        check(dvp == 52, f"{root}: Viewpoints {dvp}/52")
-        check(len(dtt) == 27, f"{root}: Tag-Typen {len(dtt)}/27")
-        check({r[0] for r in dst} == st_names, f"{root}: Stereotyp-Namen identisch")
-        check({r[0] for r in dtp} == tp_names, f"{root}: Topologie-Namen identisch")
-        check({r[0] for r in dtt} == {r[0] for r in tag}, f"{root}: Tag-Typ-Namen identisch")
-        if not down_st:
-            down_st, down_tp = dst, dtp
+    return {
+        "counts": {
+            "stereotypes": len(st_rows),
+            "topology": len(tp_rows),
+            "rules_complete": len(tp_complete),
+            "viewpoints": len(vp_names),
+            "tag_types": len(tag_rows),
+            "stereotype_tags": len(stag_rows),
+        },
+        "fingerprints": {
+            "stereotypes": fingerprint(st_names),
+            "topology": fingerprint(tp_names),
+            "viewpoints": fingerprint(vp_names),
+            "tag_types": fingerprint(tag_names),
+            "stereotype_tags": fingerprint(stag_pairs),
+        },
+        "names": {
+            "stereotypes": st_names,
+            "topology": tp_names,
+            "viewpoints": vp_names,
+            "tag_types": tag_names,
+        },
+    }
+
+
+def mdg_meta(root: Path):
+    """Liest MDG-Version und Extraktionszeit aus admbw-meta.md, falls vorhanden."""
+    meta_path = root / "admbw-meta.md"
+    out: dict[str, str | None] = {"mdg_file": None, "extracted_at": None}
+    if not meta_path.is_file():
+        return out
+    text = meta_path.read_text(encoding="utf-8")
+    m = re.search(r"\*\*MDG-Version \(aus Dateiname\):\*\*\s*(\S+)", text)
+    if m:
+        out["mdg_file"] = m.group(1)
+    m = re.search(r"\*\*Extrahiert am:\*\*\s*(.+)$", text, flags=re.MULTILINE)
+    if m:
+        out["extracted_at"] = m.group(1).strip()
+    return out
+
+
+def build_baseline(root: Path, label: str) -> dict:
+    block = metric_block(root)
+    return {
+        "schema": 1,
+        "release": label,
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": mdg_meta(root),
+        "counts": block["counts"],
+        "fingerprints": block["fingerprints"],
+    }
+
+
+# ---------------------------------------------------------------- Vergleich
+
+def compare(actual: dict, baseline: dict):
+    """Liefert (status, meldungen). status ∈ ok|drift|regression."""
+    msgs = []
+    status = "ok"
+
+    for key, _file, label in KEYS:
+        a = actual["counts"][key]
+        b = baseline["counts"][key]
+        if a < b:
+            status = "regression"
+            msgs.append(f"REGRESSION  {label}: {a} < Baseline {b} (Zähler gesunken)")
+        elif a > b:
+            if status == "ok":
+                status = "drift"
+            msgs.append(f"DRIFT       {label}: {a} > Baseline {b} (MDG neuer als Baseline)")
         else:
-            check({r[0] for r in dst} == {r[0] for r in down_st}, f"{root}: Stereotype == erstes Downstream-Repo")
-            check({r[0] for r in dtp} == {r[0] for r in down_tp}, f"{root}: Topologie == erstes Downstream-Repo")
+            msgs.append(f"OK          {label}: {a} = Baseline {b}")
 
-    print("KB-Sync: OK")
+    for key in baseline.get("fingerprints", {}):
+        a = actual["fingerprints"].get(key)
+        b = baseline["fingerprints"].get(key)
+        if a == b:
+            continue
+        if actual["counts"][key] == baseline["counts"][key]:
+            if status == "ok":
+                status = "drift"
+            msgs.append(
+                f"DRIFT       {key}: gleiche Anzahl, andere Namen "
+                f"(Fingerprint {a[:12]}… ≠ {b[:12]}…)"
+            )
+        else:
+            msgs.append(f"INFO        {key}: Fingerprint abweichend (erwartbar bei geänderter Anzahl)")
+    return status, msgs
+
+
+def check_downstream(actual: dict, roots):
+    """Downstream muss identisch zum Parser sein — sonst echter Sync-Fehler."""
+    msgs = []
+    ok = True
+    for root in roots:
+        files = {
+            "stereotypes": resolve(root, "ADMBw-Knowledge-Stereotypes.md"),
+            "topology": resolve(root, "ADMBw-Knowledge-Topology.md"),
+            "viewpoints": resolve(root, "ADMBw-Knowledge-Viewpoints.md"),
+            "tag_types": resolve(root, "ADMBw-Knowledge-TagTypes.md"),
+        }
+        missing = [f"{k} ({p.name})" for k, p in files.items() if not p.is_file()]
+        if missing:
+            ok = False
+            msgs.append(f"FEHLT       {root}: {', '.join(missing)}")
+            continue
+
+        got = {
+            "stereotypes": read_set(files["stereotypes"]),
+            "topology": read_set(files["topology"]),
+            "viewpoints": viewpoints(files["viewpoints"]),
+            "tag_types": read_set(files["tag_types"]),
+        }
+        for key, label in (("stereotypes", "Stereotype"), ("topology", "Topologie"),
+                           ("viewpoints", "Viewpoints"), ("tag_types", "Tag-Typen")):
+            if got[key] != actual["names"][key]:
+                ok = False
+                diff = sorted(got[key] ^ actual["names"][key])[:5]
+                msgs.append(f"ABWEICHUNG  {root}: {label} ≠ Parser (z.B. {', '.join(diff)})")
+            else:
+                msgs.append(f"OK          {root}: {label} identisch ({len(got[key])})")
+    return ok, msgs
+
+
+# ---------------------------------------------------------------- Haupt
+
+def main():
+    ap = argparse.ArgumentParser(description="MDG-Wissensbasis gegen Baseline prüfen")
+    ap.add_argument("parser_out", type=Path)
+    ap.add_argument("downstream", nargs="*", type=Path)
+    ap.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
+    ap.add_argument("--write-baseline", type=Path, metavar="PATH")
+    ap.add_argument("--label", default=None, help="Release-Label für --write-baseline")
+    ap.add_argument("--json", action="store_true", help="Maschinenlesbare Ausgabe")
+    args = ap.parse_args()
+
+    actual = metric_block(args.parser_out)
+
+    if args.write_baseline:
+        label = args.label or mdg_meta(args.parser_out).get("mdg_file") or "unbenannt"
+        data = build_baseline(args.parser_out, label)
+        args.write_baseline.parent.mkdir(parents=True, exist_ok=True)
+        args.write_baseline.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        print(f"Baseline geschrieben: {args.write_baseline} (release={label})")
+        for k, v in data["counts"].items():
+            print(f"  {k:16} {v}")
+        return EXIT_OK
+
+    if not args.baseline.is_file():
+        print(f"FEHLER  Baseline nicht gefunden: {args.baseline}", file=sys.stderr)
+        return EXIT_REGRESSION
+
+    baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
+    status, msgs = compare(actual, baseline)
+    ds_ok, ds_msgs = check_downstream(actual, args.downstream) if args.downstream else (True, [])
+    if not ds_ok:
+        status = "regression"
+
+    if args.json:
+        print(json.dumps({
+            "status": status,
+            "baseline": str(args.baseline),
+            "baseline_release": baseline.get("release"),
+            "actual": actual["counts"],
+            "expected": baseline["counts"],
+            "messages": msgs + ds_msgs,
+        }, indent=2, ensure_ascii=False))
+    else:
+        print(f"Baseline: {args.baseline.name} (release {baseline.get('release')})")
+        print()
+        for m in msgs:
+            print(m)
+        if ds_msgs:
+            print()
+            print("Downstream:")
+            for m in ds_msgs:
+                print("  " + m)
+        print()
+        if status == "ok":
+            print("ERGEBNIS: OK — MDG unverändert, alles synchron.")
+        elif status == "drift":
+            print("ERGEBNIS: DRIFT — die MDG ist neuer als die Baseline.")
+            print("Nächster Schritt: Parser prüfen, dann neue Baseline schreiben:")
+            print("  python3 scripts/check_kb_sync.py <out> --label <release> \\")
+            print("      --write-baseline schemas/baseline-<release>.json")
+            print("Kein Build-Fehler: Exit-Code 2 ist ein Hinweis, keine Regression.")
+        else:
+            print("ERGEBNIS: REGRESSION — Zähler gesunken oder Downstream unsynchron.")
+
+    return {"ok": EXIT_OK, "drift": EXIT_DRIFT, "regression": EXIT_REGRESSION}[status]
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

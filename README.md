@@ -48,14 +48,54 @@ Der offizielle MDG-Stand 2026.05 liegt als Test-Fixture unter
 Die GitHub Action `MDG Guard` prüft damit:
 
 - Byte-Identität zweier `--no-timestamp`-Läufe
-- 318 Stereotype / 293 nutzbar / 133 vollständige Topologie-Regeln / 52 Viewpoints / 27 Property-Typen / 225 Stereotyp-Tags
+- Übereinstimmung mit der Baseline `schemas/baseline-mdg-2026.05.json`
+  (318 Stereotype / 203 Topologie / 133 vollständige Regeln / 52 Viewpoints /
+  27 Property-Typen / 225 Stereotyp-Tags) **plus Namens-Fingerprints**
 - Namensgleichheit der Wissensbasis in Extractor, Batch und Script-Maker
+- den Drift-/Regressions-Selbsttest `tests/test_drift.py`
+
+### Baseline statt eingebrannter Zahlen
+
+Die erwarteten Zahlen stehen **nicht mehr im Code**, sondern in einer
+Baseline-Datei. Eine neue MDG-Version ist damit ein meldbarer Zustand und
+kein Build-Fehler:
+
+| Ergebnis | Exit | Bedeutung | Reaktion |
+|---|---:|---|---|
+| OK | 0 | Zähler und Namen identisch | nichts tun |
+| DRIFT | 2 | MDG ist neuer als die Baseline | Parser prüfen, neue Baseline schreiben |
+| REGRESSION | 1 | Zähler gesunken oder Downstream unsynchron | Fehler untersuchen |
+
+Die CI behandelt Exit 2 als Warnung (`::warning::`), nicht als Abbruch.
 
 Lokal:
 
 ```bash
 python3 mdg_parser.py tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-a --no-timestamp
 python3 scripts/check_kb_sync.py /tmp/mdg-a ../EAM-AI-ADMBw-Extractor ../EAM-AI-ADMBw-Batch ../repo-scan/sparx-ea-scripts
+```
+
+### Wenn eine neue MDG erscheint
+
+```bash
+# 1. neue XML extrahieren
+python3 mdg_parser.py NAFv4-ADMBw-MDG-2027.01.xml -o /tmp/mdg-2027.01 --no-timestamp
+
+# 2. Ist-Stand gegen alte Baseline prüfen (erwartet Exit 2 = DRIFT)
+python3 scripts/check_kb_sync.py /tmp/mdg-2027.01
+
+# 3. nach fachlicher Prüfung: neue Baseline schreiben
+python3 scripts/check_kb_sync.py /tmp/mdg-2027.01 --label 2027.01 \
+    --write-baseline schemas/baseline-mdg-2027.01.json
+
+# 4. Baseline im Workflow umstellen, Wissensbasis in die Downstream-Repos kopieren
+```
+
+Der Selbsttest simuliert genau diesen Fall (340 statt 318 Stereotype) und
+beweist, dass der Check Drift meldet, ohne rot zu werden:
+
+```bash
+python3 tests/test_drift.py
 ```
 
 ## Online-Version (GitHub Pages)

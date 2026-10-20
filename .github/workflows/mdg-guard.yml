@@ -41,7 +41,18 @@ jobs:
           repository: Mitchel85/EAM-AI-ADMBw-Script-Maker
           path: downstream/script-maker
 
-      - name: Verify KB sync and ADMBw counts
+      - name: Verify KB sync against baseline
         run: |
+          set +e
           python3 scripts/check_kb_sync.py /tmp/mdg-a \
             downstream/extractor downstream/batch downstream/script-maker
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::warning::MDG-Drift erkannt — die Wissensbasis ist neuer als die Baseline. Build bleibt gruen, Migration steht aus."
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Drift/Regression self-test
+        run: python3 tests/test_drift.py
