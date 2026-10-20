@@ -173,7 +173,16 @@ Die erzeugten `.md`-Dateien ersetzen die manuell gepflegten KB-Dateien in den an
 - **EAM-AI-ADMBw-Script-Maker** → `references/admbw-knowledge-*.md` (LLM generiert daraus EA-Skripte)
 - **EAM-AI-ADMBw-Extractor** → Wissensbasis für Prosa-Extraktion
 - **EAM-AI-ADMBw-Batch** → Stereotyp-/Topologie-Prüfung der JSON-Batches
-- **EAM-AI-Suite** → eingebettete Regelprüfung
+- **EAM-AI-Suite** → `tools/mdg_parser.py` + `tools/admbw_rules.json` (Regelbasis der App)
+
+Die Suite bekommt den Parser als Kopie und erzeugt ihre Regelbasis selbst:
+
+```bash
+python3 tools/mdg_parser.py tools/NAFv4-ADMBw-MDG-2026.05.xml --suite-json tools/admbw_rules.json
+```
+
+`--suite-json` schreibt ausschließlich `admbw_rules.json` (Element-/Connector-Stereotype,
+Metaconstraints, Viewpoints, Toolboxen) und keinen Markdown-Ordner.
 
 **Ablauf bei MDG-Update:** neue XML herunterladen → Parser ausführen → `sync_tools.py` → committen.
 

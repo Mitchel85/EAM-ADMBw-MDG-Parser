@@ -68,6 +68,12 @@ TOOLS = {
 }
 
 
+# Der Parser selbst liegt als Kopie in der Suite, damit sie autark bleibt.
+PARSER_COPIES = {
+    "EAM-AI-Suite": WORKSPACE / "architektur-mate-ki" / "tools" / "mdg_parser.py",
+}
+
+
 def rewrite_prompt(text, names):
     """Ersetzt die Parser-Dateinamen im Prompt durch die Zielnamen.
 
@@ -130,6 +136,21 @@ def main():
                     dst.write_text(want, encoding="utf-8")
             else:
                 print(f"  {state} {dst_name}")
+
+    for name, dst in PARSER_COPIES.items():
+        if args.tool:
+            continue
+        content = (BASE / "mdg_parser.py").read_text(encoding="utf-8")
+        if dst.is_file():
+            state = "OK   " if dst.read_text(encoding="utf-8") == content else "DIFF "
+        else:
+            state = "NEU  "
+        print(f"{name} (Parser)")
+        print(f"  {state} {dst.relative_to(WORKSPACE)}")
+        if state != "OK   ":
+            problems += 1
+            if not args.check:
+                dst.write_text(content, encoding="utf-8")
 
     if args.check:
         print("\nERGEBNIS:", "OK — alle Tools synchron" if problems == 0

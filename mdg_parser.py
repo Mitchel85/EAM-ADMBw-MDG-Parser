@@ -26,6 +26,7 @@ Programm mit Exit 2 und einer kurzen deutschen Meldung — ohne Ausgabedateien.
 import argparse
 import json
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -498,6 +499,108 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     return out
 
 
+SUITE_CONNECTOR_METATYPES = {
+    'Connector', 'Package', 'Dependency', 'Abstraction', 'Realization', 'Realisation',
+    'Generalization', 'Association', 'Aggregation', 'Composition', 'InformationFlow',
+    'ControlFlow', 'ObjectFlow', 'Usage', 'Trace', 'AssociationClass',
+}
+
+
+def build_suite_rules(root, src):
+    """Regelbasis im Schema der EAM AI Suite (Architektur Mate KI).
+
+    Entspricht ``admbw_rules.json``: elementStereo/connectorStereo mit
+    Metaconstraints, Viewpoints samt Properties und Toolbox-Zuordnungen.
+    Der Browser-Parser in ``src/part6_ki.js`` erzeugt dasselbe Schema.
+    """
+    rules = {
+        'source': os.path.basename(src),
+        'version': root.get('version') or '',
+        'profileName': '',
+        'elementStereo': {},
+        'connectorStereo': {},
+        'viewpoints': [],
+        'viewpointInfo': {},
+        'toolbox': {},
+    }
+
+    for prof in find_all(root, 'UMLProfile'):
+        for child in prof:
+            if tag(child) == 'Documentation' and child.get('name'):
+                rules['profileName'] = rules['profileName'] or child.get('name')
+                break
+
+    for st in model_stereotypes(root):
+        name = (st.get('name') or '').strip()
+        if not name:
+            continue
+        applies = [a.get('type') for a in st.iter()
+                   if tag(a) == 'Apply' and a.get('type')]
+        mcs = []
+        for m in st.iter():
+            if tag(m) != 'metaconstraint':
+                continue
+            role = m.get('umlRole')
+            for part in (m.get('constraint') or '').split(';'):
+                cst = part.split('::')[-1].strip()
+                if role and cst:
+                    mcs.append({'role': role, 'constraint': cst})
+        base = st.get('baseStereotypes') or ''
+        bases = [b for b in re.split(r'[,\s]+', base) if b]
+        gen = st.get('generalizes') or ''
+        if gen:
+            bases.insert(0, gen)
+        info = {
+            'metatype': st.get('metatype') or '',
+            'abstract': st.get('isAbstract') == 'true',
+            'generalizes': gen,
+            'base': base,
+            'bases': bases,
+            'notes': clean(st.get('notes') or '')[:250],
+            'appliesTo': applies,
+            'metaconstraints': mcs,
+        }
+        bucket = ('connectorStereo'
+                  if any(a in SUITE_CONNECTOR_METATYPES for a in applies)
+                  else 'elementStereo')
+        rules[bucket][name] = info
+
+    rules['elementNames'] = sorted(rules['elementStereo'])
+    rules['connectorNames'] = sorted(rules['connectorStereo'])
+
+    rules['viewpoints'] = [v['name'] for v in extract_viewpoints(root)]
+    for sec in find_all(root, 'DiagramProfile'):
+        for prof in [c for c in sec.iter() if tag(c) == 'UMLProfile']:
+            for st in [c for c in prof.iter() if tag(c) == 'Stereotype']:
+                vn = (st.get('name') or '').strip()
+                if not vn or vn == 'Business Process':
+                    continue
+                props = {}
+                for ap in st.iter():
+                    if tag(ap) != 'Apply':
+                        continue
+                    for p in ap:
+                        if tag(p) == 'Property' and p.get('name'):
+                            props[p.get('name')] = p.get('value') or ''
+                rules['viewpointInfo'][vn] = props
+
+    for sec in find_all(root, 'UIToolboxes'):
+        for prof in [c for c in sec.iter() if tag(c) == 'UMLProfile']:
+            name = ''
+            for child in prof:
+                if tag(child) == 'Documentation' and child.get('name'):
+                    name = child.get('name')
+                    break
+            used = []
+            for el in prof.iter():
+                if tag(el) == 'Stereotype' and el.get('name') and el.get('name') not in used:
+                    used.append(el.get('name'))
+            if name:
+                rules['toolbox'][name] = used
+
+    return rules
+
+
 def build_prompt_doc(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     """Kompakter Prompt-Kopf für Chatbots — verweist auf die Regeldateien.
 
@@ -587,6 +690,8 @@ def main():
                     help="Keine Zeitstempel in die Ausgabedateien schreiben (reproduzierbare Läufe)")
     ap.add_argument('--no-prompt', action='store_false', dest='prompt',
                     help="Keine Prompt-Datei (admbw-prompt.md) schreiben")
+    ap.add_argument('--suite-json', metavar='PATH', default=None,
+                    help="Nur die Regelbasis der EAM AI Suite schreiben (admbw_rules.json)")
     args = ap.parse_args()
 
     if not os.path.isfile(args.mdg):
@@ -632,6 +737,24 @@ def main():
     print(f"  Viewpoints: {len(vps)}")
     print(f"  Property-Typen (TaggedValueTypes): {len(enums)}")
     print(f"  Stereotyp-Tags (TaggedValues): {len(tags)}")
+
+    if args.suite_json:
+        suite = build_suite_rules(root, args.mdg)
+        try:
+            parent = os.path.dirname(os.path.abspath(args.suite_json))
+            os.makedirs(parent, exist_ok=True)
+            with open(args.suite_json, 'w', encoding='utf-8') as f:
+                json.dump(suite, f, ensure_ascii=False, indent=1)
+        except OSError as e:
+            print(f"FEHLER: Suite-Regelbasis konnte nicht geschrieben werden: "
+                  f"{args.suite_json} ({e}).", file=sys.stderr)
+            sys.exit(2)
+        print(f"  → {args.suite_json} "
+              f"({len(suite['elementStereo'])} Element-, "
+              f"{len(suite['connectorStereo'])} Connector-Stereotype, "
+              f"{len(suite['viewpoints'])} Viewpoints, "
+              f"{len(suite['toolbox'])} Toolboxes)")
+        return
 
     # Zeitstempel: --no-timestamp deaktiviert, SOURCE_DATE_EPOCH macht deterministisch
     ts = None
