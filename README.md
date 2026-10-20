@@ -18,7 +18,9 @@ python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
 
 | Ausgabe | Inhalt | Umfang (Stand 2026.05) |
 |---|---|---|
-| `admbw-knowledge-stereotypes.md` | Stereotyp-Katalog: Name, Metatype, Vererbung (`generalizes` + `baseStereotypes`), AppliesTo, Beschreibung | **318 Modell-Stereotype** (davon 293 mit AppliesTo im Modell nutzbar, 25 abstrakte Basis-Stereotype ohne AppliesTo, 5 ohne Metatype) |
+| `admbw-knowledge-stereotypes.md` | Stereotyp-Katalog: Name, Metatype, **Eltern** (`generalizes` + `baseStereotypes`), AppliesTo, **Abstrakt (🔒)**, Beschreibung | **318 Modell-Stereotype** (293 mit AppliesTo nutzbar · **44 abstrakt** — davon 25 ohne AppliesTo und 19 mit · 5 ohne Metatype) |
+| `admbw-stereotypes.json` | Derselbe Katalog maschinenlesbar: `abstract`, `parents`, `appliesTo`, `concreteDescendants` | 318 Einträge |
+| `admbw-aliases.json` | Alt-Schreibweisen (britisch/amerikanisch) → kanonischer Name | `PropertySetGeneralisation` → `PropertySetGeneralization`, `ServiceSpecificationGeneralization` → `ServiceGeneralization` |
 | `admbw-knowledge-topology.md` | Beziehungsregeln aus Metaconstraints: Quelle (client/source/end[0]), Ziel (supplier/target/end[1]), weitere Rollen | **203 Stereotype mit Regeln** (133 vollständig mit Quelle **und** Ziel — nur diese sind maschinell prüfbar) |
 | `admbw-knowledge-viewpoints.md` | Die NAFv4-Viewpoints (DiagramProfile, ohne das Diagramm-Artefakt „Business Process“) | **52 Viewpoints** |
 | `admbw-knowledge-tagtypes.md` | Tagged-Value-Definitionen mit Typeregeln (`Type=RefGUID; Values=Class; Stereotypes=…`), je `DataRow` einzeln geparst | **27 Property-Typen** |
@@ -32,6 +34,32 @@ python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
 > Der Katalog zählt ausschließlich die `UMLProfiles`-Stereotype; Toolbox-Seiten werden nicht extrahiert.
 > Viewpoint-Properties gibt es in dieser MDG nicht — die `Property`-Elemente der XML sind
 > Diagramm-Konfiguration (`Apply`) und werden nicht als fachliche Properties ausgegeben.
+
+## Abstrakte Stereotype
+
+Die MDG markiert 44 der 318 Stereotype als abstrakt (`isAbstract="true"`). Sie sind
+Platzhalter und dürfen nicht instanziiert werden:
+
+- **25 ohne AppliesTo** — reine Metamodell-Knoten (`UAFElement`, `CapableElement`,
+  `ExchangeItem`, `ProcessEdge` …). Sie können in EA gar nicht angewendet werden.
+- **19 mit AppliesTo** — technisch anwendbar, fachlich aber zu spezialisieren
+  (`ResourcePerformer`, `PhysicalResource`, `OrganizationalResource`, `Achiever`,
+  `BWRequirement`, `Rule` …).
+
+Die Grundlagen Methode Architektur (BMVg) verlangt genau das: abstrakte Elemente stehen
+in geschweiften Klammern, `{REQUIREMENT}` wird als `FunctionalRequirement` oder
+`NonfunctionalRequirement` modelliert.
+
+Der Parser kennzeichnet sie in der Tabelle mit **🔒 ja**, im JSON mit `abstract: true`
+und liefert in `concreteDescendants` die konkreten Subtypen. Regeln mit abstraktem
+Endpunkt gelten für alle diese Subtypen; der Abschnitt „Abstrakte Endpunkte“ in
+`admbw-knowledge-topology.md` listet die Auflösung.
+
+Prüfung eines Modells (Exit 1 bei Treffern):
+
+```bash
+python3 scripts/check_abstract_usage.py modell.qea
+```
 
 ## Reproduzierbarkeit & Fehlerverhalten
 

@@ -1,6 +1,6 @@
 # ADMBw-Stereotyp-Tags (MDG-TaggedValues)
 
-> Quelle: `../bw-doku-2026-10-19/mdg/NAFv4-ADMBw-MDG-2026.05.xml` — automatisch erzeugt am 2026-10-19 05:45:34 UTC
+> Quelle: `NAFv4-ADMBw-MDG-2026.05.xml` — automatisch erzeugt (ohne Zeitstempel)
 > 225 Tags an 66 Stereotypen
 
 | Stereotype | Tag | Typ | Erlaubte Werte | Default | Beschreibung |

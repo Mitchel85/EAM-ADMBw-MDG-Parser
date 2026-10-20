@@ -54,8 +54,16 @@ def cells(line):
 
 
 def table_rows(path):
-    lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.startswith("|")]
-    return [cells(l) for l in lines[2:]]
+    """Nur die erste Tabelle der Datei — spätere Abschnitte (z. B. abstrakte
+    Endpunkte) enthalten ebenfalls `|`-Zeilen und würden die Zählung verfälschen."""
+    rows, started = [], False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("|"):
+            rows.append(cells(line))
+            started = True
+        elif started:
+            break
+    return rows[2:]
 
 
 def viewpoints(path):

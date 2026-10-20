@@ -23,6 +23,7 @@ akzeptiert; alle Fehler (Datei fehlt, kein XML, fremdes XML, IO) beenden das
 Programm mit Exit 2 und einer kurzen deutschen Meldung — ohne Ausgabedateien.
 """
 import argparse
+import json
 import os
 import sys
 import xml.etree.ElementTree as ET
@@ -232,27 +233,76 @@ def extract_enums(root):
     return enums
 
 
+def stereotype_maps(st):
+    """Eltern- und Kindbeziehungen aus dem Katalog (Mehrfachvererbung inklusive).
+
+    Die MDG nennt je Stereotyp ``generalizes`` (Hauptelternteil) und
+    ``baseStereotypes`` (weitere Rollen). Für die Auflösung abstrakter Typen
+    zählt beides — sonst fehlt z. B. ResourceArchitecture der Weg zu
+    ResourcePerformer und jede CapabilityConfiguration gälte als Verstoß.
+    """
+    parents = {}
+    for s in st:
+        parents[s['name']] = [p for p in s['generalizes'].replace(',', ' ').split() if p]
+    children = {}
+    for child, ps in parents.items():
+        for p in ps:
+            children.setdefault(p, []).append(child)
+
+    def all_children(name, seen=None):
+        seen = set() if seen is None else seen
+        for c in children.get(name, []):
+            if c not in seen:
+                seen.add(c)
+                all_children(c, seen)
+        return seen
+
+    return parents, children, all_children
+
+
 def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     out = {}
+    parents, children, all_children = stereotype_maps(st)
+    by_name = {s['name']: s for s in st}
+    abstract_names = sorted(s['name'] for s in st if s['abstract'])
 
     if ts:
-        header = f"> Quelle: `{src}` — automatisch erzeugt am {ts}"
+        header = f"> Quelle: `{os.path.basename(src)}` — automatisch erzeugt am {ts}"
     else:
-        header = f"> Quelle: `{src}` — automatisch erzeugt (ohne Zeitstempel)"
+        header = f"> Quelle: `{os.path.basename(src)}` — automatisch erzeugt (ohne Zeitstempel)"
 
     # 1) Stereotype
     lines = [
         "# ADMBw-Stereotype (MDG-extrahiert)",
         "",
         header,
-        f"> {len(st)} Stereotype · Version: {version_hint}",
+        f"> {len(st)} Stereotype · {len(abstract_names)} abstrakt (🔒, nicht instanziierbar) · Version: {version_hint}",
         "",
-        "| Stereotype | Metatype | Vererbung | AppliesTo | Beschreibung |",
-        "|---|---|---|---|---|",
+        "| Stereotype | Metatype | Eltern | AppliesTo | Abstrakt | Beschreibung |",
+        "|---|---|---|---|---|---|",
     ]
     for s in st:
-        lines.append(f"| {md_escape(s['name'])} | {md_escape(s['metatype'])} | {md_escape(s['generalizes'])} | {', '.join(s['applies'])} | {md_escape(s['notes'][:160])} |")
+        lines.append(
+            f"| {md_escape(s['name'])} | {md_escape(s['metatype'])} | {md_escape(', '.join(parents.get(s['name'], [])))} | "
+            f"{', '.join(s['applies'])} | {'🔒 ja' if s['abstract'] else '–'} | {md_escape(s['notes'][:160])} |"
+        )
     out['admbw-knowledge-stereotypes.md'] = "\n".join(lines)
+
+    # 1b) Generische Arbeitsanweisung für KI-Werkzeuge (hartcodiert, nicht aus der MDG)
+    lines = [
+        "",
+        "## Hinweis für KI-Werkzeuge",
+        "",
+        "- Ein Stereotyp mit **🔒 ja** ist abstrakt. Es darf **nicht** als Element- oder Beziehungstyp verwendet werden.",
+        "- Abstrakte Typen sind Platzhalter für ihre konkreten Subtypen. Beispiele: `{REQUIREMENT}` wird als "
+        "`FunctionalRequirement` oder `NonfunctionalRequirement` modelliert; `ResourcePerformer` als "
+        "`CapabilityConfiguration`, `PhysicalResource`, `OrganizationalResource` oder `Software`.",
+        "- Für jede Regel mit abstraktem Endpunkt gilt: erlaubt sind alle konkreten Subtypen "
+        "(Feld `concreteDescendants` in `admbw-stereotypes.json`).",
+        "- Vor der Ausgabe eines Modells prüfen: kein Element und keine Beziehung trägt ein abstraktes Stereotyp "
+        "(`python3 scripts/check_abstract_usage.py modell.qea`).",
+    ]
+    out['admbw-knowledge-stereotypes.md'] += "\n" + "\n".join(lines)
 
     # 2) Topologie
     n_complete = sum(1 for t in topo if t['complete'])
@@ -268,13 +318,37 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
         "- **Ziel:** supplier, target, end[1].role oder informationTarget — je nach UML-Metaklasse.",
         "- **Weitere Rollen:** zusätzliche Metamodell-Beschränkungen (Rollennamen direkt aus der MDG).",
         f"- **Vollständigkeit:** Nur Regeln mit Quelle **und** Ziel ({n_complete} von {len(topo)}) sind maschinell prüfbar; Regeln mit ausschließlich „Weiteren Rollen“ dienen als Referenz.",
+        "- **Abstrakte Typen:** Endpunkte, die auf abstrakte Stereotype verweisen (🔒), gelten für alle konkreten Subtypen. Die Auflösung steht unten unter „Abstrakte Endpunkte“.",
         "",
         "| Stereotype | Erlaubte Quellen (client/source/end[0]) | Erlaubte Ziele (supplier/target/end[1]) | Weitere Rollen |",
         "|---|---|---|---|",
     ]
     for t in topo:
         lines.append(f"| {md_escape(t['name'])} | {', '.join(t['clients'])} | {', '.join(t['suppliers'])} | {', '.join(t['others'])} |")
+
+    # Abstrakte Endpunkte + konkrete Alternativen (für Prüfprogramme)
+    endpoints = {}
+    for t in topo:
+        for side in ('clients', 'suppliers'):
+            for n in t[side]:
+                if n in by_name and by_name[n]['abstract']:
+                    concrete = sorted(c for c in all_children(n)
+                                      if c in by_name and not by_name[c]['abstract'])
+                    endpoints[n] = concrete
+    lines += [
+        "",
+        "## Abstrakte Endpunkte",
+        "",
+        "Diese Typen dürfen **nicht instanziiert** werden. Für die Prüfung eines konkreten Modells "
+        "sind sie auf die aufgeführten konkreten Subtypen aufzulösen.",
+        "",
+        "| Abstrakter Typ | Konkrete Subtypen |",
+        "|---|---|",
+    ]
+    for n, concrete in sorted(endpoints.items()):
+        lines.append(f"| 🔒 {n} | {', '.join(concrete) if concrete else '–'} |")
     out['admbw-knowledge-topology.md'] = "\n".join(lines)
+
 
     # 3) Viewpoints
     lines = [
@@ -333,6 +407,7 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
     with_meta = sum(1 for s in st if s['metatype'])
     no_meta = sorted(s['name'] for s in st if not s['metatype'])
     abstract_bases = sum(1 for s in st if s['abstract'] and not s['applies'])
+    abstract_usable = sum(1 for s in st if s['abstract'] and s['applies'])
     lines = [
         "# ADMBw-MDG-Extraktion — Metadaten",
         "",
@@ -342,11 +417,16 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
         f"- **Stereotype im Katalog:** {len(st)} (nur UMLProfiles)",
         f"- **Davon im Modell nutzbar (mit AppliesTo):** {usable}",
         f"- **Davon mit Metatype:** {with_meta}" + (f" ({len(no_meta)} ohne: {', '.join(no_meta)})" if no_meta else ""),
-        f"- **Abstrakte Basis-Stereotype ohne AppliesTo:** {abstract_bases}",
+        f"- **Abstrakte Stereotype (🔒, nicht instanziierbar):** {len(abstract_names)}",
+        f"  - davon ohne AppliesTo (reine Platzhalter): {abstract_bases}",
+        f"  - davon mit AppliesTo (fachlich zu spezialisieren): {abstract_usable}",
         f"- **Stereotype mit Topologie-Regeln:** {len(topo)} (davon {n_complete} vollständig mit Quelle und Ziel)",
         f"- **Viewpoints:** {len(vps)} (DiagramProfile ohne Diagramm-Artefakt „Business Process“)",
         f"- **Property-Typen:** {len(enums)}",
         f"- **Stereotyp-Tags:** {len(tags)} an {len(set(t['stereotype'] for t in tags))} Stereotypen",
+        "",
+        "Die Markierung 🔒 steht in der Stereotyp-Tabelle und in `admbw-stereotypes.json` "
+        "(`abstract: true`). Ein Modell darf kein Element mit einem abstrakten Stereotyp tragen.",
         "",
         "Zählweise: Die MDG enthält die Stereotype in drei getrennten Bereichen —",
         f"{len(st)} Deklarationen in UMLProfiles (das Modellprofil, der eigentliche Katalog),",
@@ -360,6 +440,41 @@ def build_md(st, topo, vps, enums, tags, src, version_hint, ts, ctx):
         "Bei einem MDG-Update einfach den Parser erneut ausführen.",
     ]
     out['admbw-meta.md'] = "\n".join(lines)
+
+    # 7) Maschinenlesbarer Katalog (Abstrakt-Flag + Auflösung für Prüfprogramme)
+    catalogue = []
+    for s in st:
+        concrete = sorted(c for c in all_children(s['name'])
+                          if c in by_name and not by_name[c]['abstract'])
+        catalogue.append({
+            'name': s['name'],
+            'metatype': s['metatype'],
+            'abstract': s['abstract'],
+            'parents': parents.get(s['name'], []),
+            'appliesTo': s['applies'],
+            'concreteDescendants': concrete,
+        })
+    out['admbw-stereotypes.json'] = json.dumps({
+        'release': version_hint,
+        'source': os.path.basename(src),
+        'counts': {
+            'stereotypes': len(st),
+            'abstract': len(abstract_names),
+            'abstractWithoutAppliesTo': abstract_bases,
+            'abstractWithAppliesTo': abstract_usable,
+        },
+        'stereotypes': catalogue,
+    }, ensure_ascii=False, indent=1)
+
+    # 8) Schreibvarianten (britisch/amerikanisch, Alt-MDG) → kanonischer Name
+    out['admbw-aliases.json'] = json.dumps({
+        'note': 'Alt-Schreibweisen aus Modellen oder älteren MDG-Ständen. '
+                'Prüfprogramme sollen vor dem Namensvergleich umschreiben.',
+        'aliases': {
+            'PropertySetGeneralisation': 'PropertySetGeneralization',
+            'ServiceSpecificationGeneralization': 'ServiceGeneralization',
+        },
+    }, ensure_ascii=False, indent=1)
 
     return out
 
@@ -408,7 +523,8 @@ def main():
         'diagram_entries': sum(1 for sec in find_all(root, 'DiagramProfile') for s in sec.iter() if tag(s) == 'Stereotype'),
     }
 
-    print(f"  Stereotype (UMLProfiles): {len(st)}")
+    print(f"  Stereotype (UMLProfiles): {len(st)} "
+          f"({sum(1 for s in st if s['abstract'])} abstrakt 🔒)")
     print(f"  Topologie-Regeln (Stereotype mit Metaconstraints): {len(topo)} "
           f"(davon {sum(1 for t in topo if t['complete'])} vollständig)")
     print(f"  Viewpoints: {len(vps)}")

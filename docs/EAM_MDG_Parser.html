@@ -230,7 +230,8 @@ function parseMdg(text){
       meta: (st.getAttribute('metatype') || '').trim(),
       notes: clean(st.getAttribute('notes')),
       gen: parents.join(' '),
-      applies: applies
+      applies: applies,
+      abs: (st.getAttribute('isAbstract') || '').toLowerCase() === 'true'
     });
   }
 
@@ -341,15 +342,31 @@ function buildMarkdown(){
   var withMeta = DATA.stereo.filter(function(s){ return s.meta; }).length;
   var noMeta = DATA.stereo.filter(function(s){ return !s.meta; }).map(function(s){ return s.name; }).sort().join(', ');
   var complete = DATA.topo.filter(function(t){ return t.complete; }).length;
+  var absCount = DATA.stereo.filter(function(s){ return s.abs; }).length;
+  var children = {};
+  DATA.stereo.forEach(function(s){
+    (s.gen ? s.gen.split(/\s+/) : []).forEach(function(p){ (children[p] = children[p] || []).push(s.name); });
+  });
+  var byName = {}; DATA.stereo.forEach(function(s){ byName[s.name] = s; });
+  function allChildren(name, seen){
+    seen = seen || {};
+    (children[name] || []).forEach(function(c){ if (!seen[c]) { seen[c] = 1; allChildren(c, seen); } });
+    return Object.keys(seen);
+  }
   var L = [];
   var out = {};
 
   L = ['# ADMBw-Stereotype (MDG-extrahiert)', '',
     '> Quelle: `' + src + '` — automatisch erzeugt am ' + now + ' (Web-Parser)',
-    '> ' + DATA.stereo.length + ' Stereotype', '',
-    '| Stereotype | Metatype | Vererbung | AppliesTo | Beschreibung |',
-    '|---|---|---|---|---|'];
-  DATA.stereo.forEach(function(s){ L.push('| ' + mdEsc(s.name) + ' | ' + mdEsc(s.meta) + ' | ' + mdEsc(s.gen) + ' | ' + mdEsc(s.applies.join(', ')) + ' | ' + mdEsc(s.notes.slice(0, 160)) + ' |'); });
+    '> ' + DATA.stereo.length + ' Stereotype · ' + absCount + ' abstrakt (🔒, nicht instanziierbar) · Version: ' + src, '',
+    '| Stereotype | Metatype | Eltern | AppliesTo | Abstrakt | Beschreibung |',
+    '|---|---|---|---|---|---|'];
+  DATA.stereo.forEach(function(s){ L.push('| ' + mdEsc(s.name) + ' | ' + mdEsc(s.meta) + ' | ' + mdEsc((s.gen || '').split(/\s+/).join(', ')) + ' | ' + mdEsc(s.applies.join(', ')) + ' | ' + (s.abs ? '🔒 ja' : '–') + ' | ' + mdEsc(s.notes.slice(0, 160)) + ' |'); });
+  L.push('', '## Hinweis für KI-Werkzeuge', '',
+    '- Ein Stereotyp mit **🔒 ja** ist abstrakt. Es darf **nicht** als Element- oder Beziehungstyp verwendet werden.',
+    '- Abstrakte Typen sind Platzhalter für ihre konkreten Subtypen. Beispiele: `{REQUIREMENT}` wird als `FunctionalRequirement` oder `NonfunctionalRequirement` modelliert; `ResourcePerformer` als `CapabilityConfiguration`, `PhysicalResource`, `OrganizationalResource` oder `Software`.',
+    '- Für jede Regel mit abstraktem Endpunkt gilt: erlaubt sind alle konkreten Subtypen (Feld `concreteDescendants` in `admbw-stereotypes.json`).',
+    '- Vor der Ausgabe eines Modells prüfen: kein Element und keine Beziehung trägt ein abstraktes Stereotyp.');
   out['admbw-knowledge-stereotypes.md'] = L.join('\n');
 
   L = ['# ADMBw-Topologie-Regeln (MDG-Metaconstraints)', '',
@@ -363,6 +380,20 @@ function buildMarkdown(){
     '| Stereotype | Erlaubte Quellen (client/source/end[0]) | Erlaubte Ziele (supplier/target/end[1]) | Weitere Rollen |',
     '|---|---|---|---|'];
   DATA.topo.forEach(function(t){ L.push('| ' + mdEsc(t.name) + ' | ' + mdEsc(t.clients.join(', ')) + ' | ' + mdEsc(t.suppliers.join(', ')) + ' | ' + mdEsc(t.others.join(', ')) + ' |'); });
+  var eps = {};
+  DATA.topo.forEach(function(t){
+    ['clients', 'suppliers'].forEach(function(k){
+      (t[k] || []).forEach(function(n){
+        if (byName[n] && byName[n].abs) {
+          eps[n] = allChildren(n).filter(function(c){ return byName[c] && !byName[c].abs; }).sort();
+        }
+      });
+    });
+  });
+  L.push('', '## Abstrakte Endpunkte', '',
+    'Diese Typen dürfen **nicht instanziiert** werden. Für die Prüfung eines konkreten Modells sind sie auf die aufgeführten konkreten Subtypen aufzulösen.', '',
+    '| Abstrakter Typ | Konkrete Subtypen |', '|---|---|');
+  Object.keys(eps).sort().forEach(function(n){ L.push('| 🔒 ' + n + ' | ' + (eps[n].length ? eps[n].join(', ') : '–') + ' |'); });
   out['admbw-knowledge-topology.md'] = L.join('\n');
 
   L = ['# ADMBw-Viewpoints (MDG-DiagramProfile)', '',
@@ -402,7 +433,9 @@ function buildMarkdown(){
     '- **Stereotype im Katalog:** ' + DATA.stereo.length + ' (nur UMLProfiles)',
     '- **Davon im Modell nutzbar (mit AppliesTo):** ' + usable,
     '- **Davon mit Metatype:** ' + withMeta + (noMeta ? ' (' + DATA.stereo.filter(function(s){ return !s.meta; }).length + ' ohne: ' + noMeta + ')' : ''),
-    '- **Abstrakte Basis-Stereotype ohne AppliesTo:** ' + DATA.stereo.filter(function(s){ return !s.applies || s.applies.length === 0; }).length,
+    '- **Abstrakte Stereotype (🔒, nicht instanziierbar):** ' + absCount,
+    '  - davon ohne AppliesTo (reine Platzhalter): ' + DATA.stereo.filter(function(s){ return s.abs && (!s.applies || !s.applies.length); }).length,
+    '  - davon mit AppliesTo (fachlich zu spezialisieren): ' + DATA.stereo.filter(function(s){ return s.abs && s.applies && s.applies.length; }).length,
     '- **Stereotype mit Topologie-Regeln:** ' + DATA.topo.length + ' (davon ' + complete + ' vollständig mit Quelle und Ziel)',
     '- **Viewpoints:** ' + DATA.vp.length + ' (DiagramProfile ohne Diagramm-Artefakt „Business Process“)',
     '- **Property-Typen:** ' + DATA.tag.length,
@@ -446,8 +479,8 @@ function renderPanels(){
   $('p-stereo').innerHTML =
     '<div class="phead"><h3>Stereotype <span class="count">(' + DATA.stereo.length + ')</span></h3>' +
     '<div class="tools"><input class="search" placeholder="Suchen …" oninput="filterTable(this.value, \'stbody\')"></div></div>' +
-    mkTable(['Stereotype','Metatype','Vererbung','AppliesTo','Beschreibung'],
-      DATA.stereo.map(function(s){ return [escHtml(s.name), '<span class="tag">' + escHtml(s.meta) + '</span>', escHtml(s.gen), s.applies.map(function(a){ return '<span class="tag amber">' + escHtml(a) + '</span>'; }).join(''), escHtml(s.notes.slice(0, 140))]; })).replace('<tbody>', '<tbody id="stbody">');
+    mkTable(['Stereotype','Metatype','Eltern','AppliesTo','Abstrakt','Beschreibung'],
+      DATA.stereo.map(function(s){ return [escHtml(s.name), '<span class="tag">' + escHtml(s.meta) + '</span>', escHtml((s.gen || '').split(/\s+/).join(', ')), s.applies.map(function(a){ return '<span class="tag amber">' + escHtml(a) + '</span>'; }).join(''), (s.abs ? '🔒' : '–'), escHtml(s.notes.slice(0, 140))]; })).replace('<tbody>', '<tbody id="stbody">');
 
   $('p-topo').innerHTML =
     '<div class="phead"><h3>Topologie-Regeln <span class="count">(' + DATA.topo.length + ')</span></h3>' +

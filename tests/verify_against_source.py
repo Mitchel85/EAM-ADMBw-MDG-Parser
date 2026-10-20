@@ -41,9 +41,15 @@ def cells(line):
     return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", body)]
 
 
-def rows(path):
-    lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.startswith("|")]
-    return [cells(l) for l in lines[2:]]
+def rows(path, cols=None, stop=None):
+    text = path.read_text(encoding="utf-8")
+    if stop:
+        text = text.split(stop)[0]
+    lines = [l for l in text.splitlines() if l.startswith("|")]
+    out = [cells(l) for l in lines[2:]]
+    if cols is not None:
+        out = [r for r in out if len(r) == cols]
+    return out
 
 
 def as_set(value):
@@ -119,12 +125,12 @@ for name, st in by_name.items():
 
 # ---------------------------------------------------------------- MD-Seite
 
-md_st = rows(OUT / "admbw-knowledge-stereotypes.md")
-md_topo = rows(OUT / "admbw-knowledge-topology.md")
+md_st = rows(OUT / "admbw-knowledge-stereotypes.md", cols=6)
+md_topo = rows(OUT / "admbw-knowledge-topology.md", cols=4, stop="## Abstrakte Endpunkte")
 md_vp = {m.group(1).strip() for m in re.finditer(r"^## (.+)$", (OUT / "admbw-knowledge-viewpoints.md").read_text(encoding="utf-8"), re.M)}
 md_vp.discard("Lesart")
-md_tt = rows(OUT / "admbw-knowledge-tagtypes.md")
-md_stags = {f"{r[0]}|{r[1]}" for r in rows(OUT / "admbw-knowledge-stereotype-tags.md") if len(r) >= 2}
+md_tt = rows(OUT / "admbw-knowledge-tagtypes.md", cols=4)
+md_stags = {f"{r[0]}|{r[1]}" for r in rows(OUT / "admbw-knowledge-stereotype-tags.md", cols=6) if len(r) >= 2}
 
 print(f"Quelle: {XML.name}")
 print()
@@ -137,9 +143,9 @@ check({r[0] for r in md_st} == set(by_name),
       f"nur XML: {sorted(set(by_name) - {r[0] for r in md_st})[:5]} · nur MD: {sorted({r[0] for r in md_st} - set(by_name))[:5]}")
 
 # 2 — Attribute je Stereotyp
-mismatch_meta, mismatch_gen, mismatch_applies = [], [], []
+mismatch_meta, mismatch_gen, mismatch_applies, mismatch_abs = [], [], [], []
 for r in md_st:
-    name, meta, gen, applies = r[0], r[1], r[2], r[3]
+    name, meta, gen, applies, abstract = r[0], r[1], r[2], r[3], r[4]
     st = by_name.get(name)
     if st is None:
         continue
@@ -149,16 +155,23 @@ for r in md_st:
     for p in [(st.get("generalizes") or "").strip()] + (st.get("baseStereotypes") or "").replace(",", " ").split():
         if p and p not in parents:
             parents.append(p)
-    if " ".join(parents) != gen:
-        mismatch_gen.append((name, " ".join(parents), gen))
+    if sorted(parents) != sorted(as_set(gen)):
+        mismatch_gen.append((name, parents, gen))
     x_applies = sorted({(ap.get("type") or "").strip() for at in [c for c in st if tag(c) == "AppliesTo"]
                         for ap in [c for c in at if tag(c) == "Apply"] if (ap.get("type") or "").strip()})
     if x_applies != sorted(as_set(applies)):
         mismatch_applies.append((name, x_applies, applies))
+    x_abs = (st.get("isAbstract") or "").lower() == "true"
+    m_abs = abstract.startswith("🔒")
+    if x_abs != m_abs:
+        mismatch_abs.append((name, x_abs, abstract))
 
 check(not mismatch_meta, "Metatype je Stereotyp korrekt", str(mismatch_meta[:3]))
-check(not mismatch_gen, "Vererbung je Stereotyp korrekt", str(mismatch_gen[:3]))
+check(not mismatch_gen, "Eltern je Stereotyp vollständig (generalizes + baseStereotypes)", str(mismatch_gen[:3]))
 check(not mismatch_applies, "AppliesTo je Stereotyp korrekt", str(mismatch_applies[:3]))
+check(not mismatch_abs, "Abstrakt-Markierung je Stereotyp korrekt", str(mismatch_abs[:3]))
+check(sum(1 for r in md_st if r[4].startswith("🔒")) == 44,
+      "44 abstrakte Stereotype markiert", str(sum(1 for r in md_st if r[4].startswith("🔒"))))
 
 # 3 — Topologie
 md_topo_map = {}

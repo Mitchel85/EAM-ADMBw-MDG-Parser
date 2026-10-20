@@ -49,11 +49,32 @@ def copy_output(dst):
 def add_stereotypes(root: Path, count: int):
     path = root / "admbw-knowledge-stereotypes.md"
     lines = path.read_text(encoding="utf-8").splitlines()
-    for i in range(count):
-        lines.append(
-            f"| TestStereotype{i:03d} | TestStereotype{i:03d} | Element | "
-            f"Class | Synthetisch für den Drift-Test. |"
-        )
+    last = max(i for i, l in enumerate(lines) if l.startswith("|"))
+    new = [
+        f"| TestStereotype{i:03d} | TestStereotype{i:03d} | Element | "
+        f"Class | – | Synthetisch für den Drift-Test. |"
+        for i in range(count)
+    ]
+    lines[last + 1:last + 1] = new
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def drop_last_stereotype(root: Path):
+    path = root / "admbw-knowledge-stereotypes.md"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    last = max(i for i, l in enumerate(lines) if l.startswith("|"))
+    del lines[last]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def drop_last_table_row(path: Path):
+    """Letzte Zeile der ersten Tabelle entfernen (nicht der Folgetabellen)."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, l in enumerate(lines) if l.startswith("|"))
+    end = start
+    while end < len(lines) and lines[end].startswith("|"):
+        end += 1
+    del lines[end - 1]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -77,9 +98,7 @@ def main():
 
         # 3 — Zähler gesunken → Regression
         c = copy_output(tmp / "c")
-        p = c / "admbw-knowledge-stereotypes.md"
-        lines = p.read_text(encoding="utf-8").splitlines()
-        p.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+        drop_last_stereotype(c)
         code, out = run(c)
         expect("−1 Stereotyp → Exit 1 (REGRESSION)", code == 1, out)
         expect("Regression nennt den Rückgang", "317 < Baseline 318" in out, out)
@@ -110,8 +129,7 @@ def main():
             shutil.copy(src, down / new)
         # Downstream absichtlich beschneiden
         tp = down / "ADMBw-Knowledge-Topology.md"
-        tp.write_text("\n".join(tp.read_text(encoding="utf-8").splitlines()[:-1]) + "\n",
-                      encoding="utf-8")
+        drop_last_table_row(tp)
         code, out = run(e, str(down))
         expect("Downstream unsynchron → Exit 1", code == 1, out)
         expect("Abweichung wird benannt", "ABWEICHUNG" in out, out)
