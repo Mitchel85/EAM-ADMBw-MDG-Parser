@@ -35,6 +35,30 @@ python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
 > Viewpoint-Properties gibt es in dieser MDG nicht — die `Property`-Elemente der XML sind
 > Diagramm-Konfiguration (`Apply`) und werden nicht als fachliche Properties ausgegeben.
 
+## Prompt-Pack (für Chatbots)
+
+`admbw-prompt-pack.md` bündelt das komplette Regelwerk in **einer** Datei — zum Hochladen
+oder Einfügen in einen Chatbot, zusammen mit dem Prosa-Text. Enthalten sind Rolle/Auftrag,
+eiserne Regeln, Ausgabeformat, Stereotyp-Katalog, abstrakte Auflösung, Topologie,
+Viewpoints, Tag-Typen, Stereotyp-Tags und Aliases.
+
+```bash
+python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output
+# nur Stereotype + Topologie (kleiner, für enge Kontextfenster):
+python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output --prompt-pack core
+# gar keine Chatbot-Datei:
+python3 mdg_parser.py NAFv4-ADMBw-MDG-2026.05.xml -o output --no-prompt-pack
+```
+
+| Variante | Datei | Umfang |
+|---|---|---|
+| `full` (Default) | `admbw-prompt-pack.md` | ~117k Zeichen ≈ 32k Tokens, alle Regelklassen |
+| `core` | `admbw-prompt-core.md` | ~84k Zeichen ≈ 23k Tokens, ohne Viewpoints/Tags |
+
+Der Pack wird aus denselben Daten wie die Einzeldateien erzeugt (eine Quelle, zwei Views).
+Beschreibungen sind auf den ersten Satz gekürzt; die Einzeldateien bleiben die
+vollständige Referenz.
+
 ## Abstrakte Stereotype
 
 Die MDG markiert 44 der 318 Stereotype als abstrakt (`isAbstract="true"`). Sie sind
