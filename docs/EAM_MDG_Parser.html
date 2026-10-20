@@ -402,6 +402,7 @@ function buildMarkdown(){
     '- **Stereotype im Katalog:** ' + DATA.stereo.length + ' (nur UMLProfiles)',
     '- **Davon im Modell nutzbar (mit AppliesTo):** ' + usable,
     '- **Davon mit Metatype:** ' + withMeta + (noMeta ? ' (' + DATA.stereo.filter(function(s){ return !s.meta; }).length + ' ohne: ' + noMeta + ')' : ''),
+    '- **Abstrakte Basis-Stereotype ohne AppliesTo:** ' + DATA.stereo.filter(function(s){ return !s.applies || s.applies.length === 0; }).length,
     '- **Stereotype mit Topologie-Regeln:** ' + DATA.topo.length + ' (davon ' + complete + ' vollständig mit Quelle und Ziel)',
     '- **Viewpoints:** ' + DATA.vp.length + ' (DiagramProfile ohne Diagramm-Artefakt „Business Process“)',
     '- **Property-Typen:** ' + DATA.tag.length,
