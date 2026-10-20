@@ -54,5 +54,10 @@ jobs:
           fi
           exit "$code"
 
+      - name: Verify parser output against source XML (independent recomputation)
+        run: |
+          python3 tests/verify_against_source.py \
+            tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml /tmp/mdg-a
+
       - name: Drift/Regression self-test
         run: python3 tests/test_drift.py

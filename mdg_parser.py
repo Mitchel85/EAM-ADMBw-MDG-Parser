@@ -392,6 +392,11 @@ def main():
 
     print(f"Lese {args.mdg} …")
     st = extract_stereotypes(root)
+    if not st:
+        print("FEHLER: Die Datei enthält keine Modell-Stereotype (UMLProfiles/Content/"
+              "Stereotypes). Das ist keine ADMBw-MDG — oder eine unvollständige Datei.",
+              file=sys.stderr)
+        sys.exit(2)
     topo = extract_topology(root)
     vps = extract_viewpoints(root)
     enums = extract_enums(root)
