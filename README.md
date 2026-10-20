@@ -121,7 +121,7 @@ Lokal:
 
 ```bash
 python3 mdg_parser.py tests/fixtures/NAFv4-ADMBw-MDG-2026.05.xml -o /tmp/mdg-a --no-timestamp
-python3 scripts/check_kb_sync.py /tmp/mdg-a ../EAM-AI-ADMBw-Extractor ../EAM-AI-ADMBw-Batch ../repo-scan/sparx-ea-scripts
+python3 scripts/check_kb_sync.py /tmp/mdg-a ../EAM-AI-ADMBw-Extractor ../EAM-AI-ADMBw-Batch
 ```
 
 ### Wenn eine neue MDG erscheint
@@ -175,7 +175,20 @@ Die erzeugten `.md`-Dateien ersetzen die manuell gepflegten KB-Dateien in den an
 - **EAM-AI-ADMBw-Batch** → Stereotyp-/Topologie-Prüfung der JSON-Batches
 - **EAM-AI-Suite** → eingebettete Regelprüfung
 
-**Ablauf bei MDG-Update:** neue XML herunterladen → Parser ausführen → erzeugte Dateien in die Ziel-Repos kopieren → committen. Die Tools arbeiten sofort mit den neuen Regeln.
+**Ablauf bei MDG-Update:** neue XML herunterladen → Parser ausführen → `sync_tools.py` → committen.
+
+```bash
+python3 mdg_parser.py NAFv4-ADMBw-MDG-2027.01.xml -o output --no-timestamp
+python3 scripts/sync_tools.py --check    # zeigt Abweichungen, Exit 1
+python3 scripts/sync_tools.py            # schreibt in alle drei Tools
+```
+
+`sync_tools.py` kopiert die sechs Wissens-MDs, beide JSON und die Prompt-Datei in
+Extractor, Batch und Script-Maker. Die tool-eigenen Dateien
+(`ADMBw-Knowledge-Connectors.md`, `system_prompt.md`, `SKILL.md`) bleiben unangetastet;
+im Prompt werden nur die Dateinamen auf das jeweilige Schema umgeschrieben.
+`EAM-AI-Suite` hat aktuell kein eigenes Arbeitsverzeichnis im Workspace und wird
+deshalb nicht automatisch bespielt.
 
 ## Autor & Lizenz
 
