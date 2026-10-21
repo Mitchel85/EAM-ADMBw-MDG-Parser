@@ -1,6 +1,6 @@
 # EAM-ADMBw-MDG-Parser
 
-**Extrahiert aus der offiziellen ADMBw-MDG-Technologie (NAFv4) KI-lesbare Regeldateien** — die Wissensbasis für die ADMBw-Toolfamilie (Script-Maker, Extractor, Batch, KI-Suite). Die MDG-Technologie ist das Profilformat von Sparx Systems Enterprise Architect.
+**Extrahiert aus der offiziellen ADMBw-MDG-Technologie (Sparx EA / NAFv4) KI-lesbare Regeldateien** — die Wissensbasis für die ADMBw-Toolfamilie (Script-Maker, Extractor, Batch, KI-Suite).
 
 100 % offline: reine Python-Stdlib, keine Netzwerkaufrufe zur Laufzeit.
 
@@ -203,5 +203,11 @@ deshalb nicht automatisch bespielt.
 
 - **Autor:** Michael Estel
 - **Lizenz:** MIT License
-- Hinweis: Dieses Werkzeug liest ausschließlich die **öffentlich bereitgestellte** MDG-Technologie der Bundeswehr und erzeugt daraus Dokumentation.
-- **Marken:** Dieses Werkzeug ist ein unabhängiges Drittanbieter-Produkt. Es ist nicht mit der Sparx Systems Pty Ltd verbunden, wird von dieser nicht unterstützt und nicht gesponsert. „Sparx Systems“ und „Enterprise Architect“ sind Marken oder eingetragene Marken der Sparx Systems Pty Ltd. Es werden keine Bestandteile von Sparx Systems oder der Bundeswehr weiterverteilt.
+- Hinweis: Dieses Werkzeug liest ausschließlich die **öffentlich bereitgestellte** MDG-Technologie der Bundeswehr und erzeugt daraus Dokumentation. Es werden keine Bestandteile von Sparx Systems oder der Bundeswehr weiterverteilt.
+
+## Rechtliches
+
+EAM MDG Parser ist ein unabhängiges Drittanbieter-Werkzeug. Es ist nicht mit der Sparx Systems Pty Ltd
+verbunden, wird von dieser nicht unterstützt und nicht gesponsert. „Sparx Systems" und
+„Enterprise Architect" sind Marken oder eingetragene Marken der Sparx Systems Pty Ltd.
+Alle weiteren Marken sind Eigentum ihrer jeweiligen Inhaber.
