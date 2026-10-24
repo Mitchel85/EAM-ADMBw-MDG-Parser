@@ -1,3 +1,8 @@
+> **Archiviert (24.10.2026).** Dieses Repository wird nicht mehr weiterentwickelt.
+> Die aktive Quelle ist [Mitchel85/EAM-Platform](https://github.com/Mitchel85/EAM-Platform)
+> (ein MDG-Leser, eine Wissensbasis, alle Auslieferungen).
+> Der letzte Stand bleibt als Tag `pre-consolidation-2026-10` lesbar.
+
 # EAM-ADMBw-MDG-Parser
 
 **Extrahiert aus der offiziellen ADMBw-MDG-Technologie (Sparx EA / NAFv4) KI-lesbare Regeldateien** — die Wissensbasis für die ADMBw-Toolfamilie (Script-Maker, Extractor, Batch, KI-Suite).
